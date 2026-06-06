@@ -1,0 +1,213 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: #2c3e50;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: 100vh;
+  padding-top: 20px;
+}
+
+#app {
+  background: #ecf0f1;
+  padding: 20px;
+  border-radius: 16px;
+  display: flex;
+  gap: 20px;
+  max-width: 1200px;
+  width: 100%;
+  flex-wrap: nowrap;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+}
+
+.left {
+  flex-shrink: 0;
+}
+
+#canvasWrapper {
+  border: 2px solid #bdc3c7;
+  background-color: #fff;
+  background-size: 20px 20px;
+  border-radius: 8px;
+  overflow: hidden;
+  display: inline-block;
+}
+
+canvas {
+  display: block;
+}
+
+.right {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 260px;
+  overflow-y: auto;
+  max-height: 80vh;
+  padding-right: 6px;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.section-title {
+  font-weight: bold;
+  font-size: 14px;
+  color: #2c3e50;
+  border-bottom: 1px solid #bdc3c7;
+  padding-bottom: 2px;
+}
+
+.material-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 250px;
+  overflow-y: auto;
+  background: #bdc3c7;
+  padding: 8px;
+  border-radius: 8px;
+}
+
+.mat-item {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+
+.mat-item:hover {
+  transform: scale(1.1);
+}
+
+.mat-item img {
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  border: 2px solid transparent;
+  border-radius: 4px;
+}
+
+.mat-item img.selected {
+  border-color: #e67e22;
+  box-shadow: 0 0 6px rgba(230,126,34,0.6);
+}
+
+.mat-item .del-btn {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 16px;
+  height: 16px;
+  background: red;
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+  cursor: pointer;
+  display: none;
+}
+
+.mat-item:hover .del-btn {
+  display: block;
+}
+
+.control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.control-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+button, select, input[type="file"] {
+  cursor: pointer;
+  padding: 6px 10px;
+  border: 1px solid #95a5a6;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 13px;
+  transition: background 0.2s, transform 0.2s;
+}
+
+button:hover, select:hover {
+  background: #d5dbdb;
+  transform: translateY(-1px);
+}
+
+button:active {
+  transform: translateY(0);
+}
+
+input[type="number"] {
+  width: 60px;
+  padding: 4px;
+  border: 1px solid #bdc3c7;
+  border-radius: 4px;
+}
+
+input[type="color"] {
+  width: 40px;
+  height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+}
+
+label {
+  font-size: 13px;
+}
+
+select {
+  padding: 4px 6px;
+}
+
+.preset-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.preset-item {
+  display: inline-flex;
+  align-items: center;
+  background: #fff;
+  border: 1px solid #95a5a6;
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.preset-item:hover {
+  background: #d5dbdb;
+}
+
+.preset-item span {
+  margin-right: 4px;
+}
+
+.preset-item .preset-del {
+  color: red;
+  font-weight: bold;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Minecraft 材质合成器</title>
+  <link rel="stylesheet" href="mao-T.css">
+  <link rel="icon" href="Sk.png" type="image/png">
+</head>
+<body>
+  <div id="app">
+    <div class="left">
+      <div id="canvasWrapper">
+        <canvas id="canvas" width="520" height="520"></canvas>
+      </div>
+    </div>
+    <div class="right">
+      <div class="section">
+        <div class="section-title">画布设置</div>
+        <div class="control-row">
+          <span>宽:</span>
+          <input type="number" id="canvasW" value="520" min="100" max="900" step="1">
+          <span>高:</span>
+          <input type="number" id="canvasH" value="520" min="100" max="2000" step="1">
+          <button id="resizeCanvasBtn">应用</button>
+        </div>
+        <div class="control-row" style="margin-top:4px">
+          <button id="savePresetBtn">保存到预设</button>
+        </div>
+        <div class="preset-list" id="presetList"></div>
+      </div>
+      <div class="section">
+        <div class="section-title">背景</div>
+        <div class="control-row">
+          <label>背景色:</label>
+          <input type="color" id="bgColor" value="#ffffff">
+        </div>
+        <div class="control-row">
+          <button id="checkerBgBtn">棋盘格</button>
+          <button id="transparentBgBtn">透明背景</button>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-title">材质</div>
+        <input type="file" id="upload" accept="image/*" multiple>
+        <div class="material-panel" id="materialPanel"></div>
+        <div class="control-row">
+          <button id="clearMaterialsBtn">清空材质</button>
+        </div>
+        <button id="addBtn">添加到画布</button>
+        <button id="deleteBtn">删除选中</button>
+      </div>
+      <div class="section">
+        <div class="section-title">参数</div>
+        <div class="control-group">
+          <div class="control-row">
+            <label>大小:</label>
+            <input type="range" id="sizeSlider" min="1" max="512" value="32">
+            <input type="number" id="sizeInput" min="1" max="512" value="32">
+          </div>
+          <div class="control-row">
+            <label>高度:</label>
+            <input type="range" id="levelSlider" min="-10" max="10" value="2">
+            <input type="number" id="levelInput" min="-10" max="10" value="2">
+          </div>
+          <div class="control-row">
+            <label>光源角:</label>
+            <input type="range" id="lightAngleSlider" min="0" max="360" value="135">
+            <input type="number" id="lightAngleInput" min="0" max="360" value="135" style="width:50px">
+          </div>
+          <div class="control-row">
+            <label>阴影长:</label>
+            <input type="range" id="shadowLenSlider" min="0.5" max="5" step="0.1" value="1.5">
+            <input type="number" id="shadowLenInput" min="0.5" max="5" step="0.1" value="1.5" style="width:50px">
+          </div>
+        </div>
+      </div>
+      <div class="section">
+        <button id="exportTransparentBtn">导出透明PNG</button>
+        <button id="exportWithBgBtn">导出带背景</button>
+      </div>
+    </div>
+  </div>
+  <script src="maouse.js"></script>
+</body>
+</html>
