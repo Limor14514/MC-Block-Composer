@@ -17,6 +17,14 @@
   const shadowLenSlider = document.getElementById('shadowLenSlider');
   const shadowLenInput = document.getElementById('shadowLenInput');
   const presetList = document.getElementById('presetList');
+  const gridToggle = document.getElementById('gridToggle');
+  const previewModal = document.getElementById('previewModal');
+  const previewImage = document.getElementById('previewImage');
+  const confirmExport = document.getElementById('confirmExport');
+  const cancelExport = document.getElementById('cancelExport');
+  const shortcutModal = document.getElementById('shortcutModal');
+  const themeToggle = document.getElementById('themeToggle');
+  const shortcutBtn = document.getElementById('shortcutBtn');
 
   let bgMode = 'checkerboard';
   const textures = [];
@@ -24,23 +32,81 @@
   let selectedIds = new Set();
   let nextId = 1;
   let currentTextureIndex = -1;
+  let pendingExportType = null;
+  let showGrid = false;
+  let snapTarget = null;
 
   const history = [];
   let historyIndex = -1;
   const MAX_HISTORY = 80;
   let clipboardBuffer = [];
-
   const MAX_PRESETS = 5;
   let presets = [];
+
+  let dragData = null;
+  let dragStartPositions = null;
+  let lowPerformanceMode = false;
+
+  function saveDraft() {
+    try {
+      const draft = {
+        items: placedItems,
+        textures: textures.map(t => t.dataURL),
+        selected: Array.from(selectedIds),
+        bgMode,
+        bgColor: bgColorInput.value,
+        showGrid
+      };
+      localStorage.setItem('pixelblock_draft', JSON.stringify(draft));
+    } catch(e) {}
+  }
+
+  function loadDraft() {
+    try {
+      const raw = localStorage.getItem('pixelblock_draft');
+      if (!raw) return;
+      const draft = JSON.parse(raw);
+      placedItems = draft.items || [];
+      selectedIds = new Set(draft.selected || []);
+      bgMode = draft.bgMode || 'checkerboard';
+      bgColorInput.value = draft.bgColor || '#ffffff';
+      showGrid = draft.showGrid || false;
+      gridToggle.checked = showGrid;
+      let loaded = 0;
+      const urls = draft.textures || [];
+      urls.forEach((dataURL, idx) => {
+        const img = new Image();
+        img.onload = () => {
+          textures[idx] = { img, dataURL };
+          loaded++;
+          if (loaded === urls.length) {
+            refreshMaterialPanel();
+            drawAll();
+            applyBackgroundStyle();
+          }
+        };
+        img.src = dataURL;
+      });
+      if (urls.length === 0) {
+        nextId = placedItems.reduce((max, item) => Math.max(max, item.id), 0) + 1;
+        refreshMaterialPanel();
+        drawAll();
+        applyBackgroundStyle();
+      }
+    } catch(e) {}
+  }
+
+  window.addEventListener('beforeunload', saveDraft);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') saveDraft();
+  });
 
   function loadPresets() {
     try {
       const saved = localStorage.getItem('canvasPresets');
       if (saved) presets = JSON.parse(saved);
       else presets = [];
-    } catch (e) {
-      presets = [];
-    }
+    } catch (e) { presets = []; }
   }
 
   function savePresets() {
@@ -77,21 +143,29 @@
     const w = parseInt(document.getElementById('canvasW').value);
     const h = parseInt(document.getElementById('canvasH').value);
     if (isNaN(w) || isNaN(h) || w < 100 || h < 100) return;
-    if (w > 900) {
-      alert('画布宽度最大为 900px');
-      return;
-    }
+    if (w > 900) { alert('画布宽度最大为 900px'); return; }
     presets.push({ w, h });
     savePresets();
   });
 
+  document.getElementById('clearCanvasBtn').addEventListener('click', () => {
+    if (placedItems.length === 0) return;
+    saveHistory();
+    placedItems = [];
+    selectedIds.clear();
+    drawAll();
+    updateUI();
+  });
+
   function drawAll() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (showGrid) drawGrid();
     const sorted = [...placedItems].sort((a, b) => a.level - b.level);
     const angle = parseFloat(lightAngleInput.value) * Math.PI / 180;
     const shadowFactor = parseFloat(shadowLenInput.value);
+    const drawShadow = !lowPerformanceMode;
     for (const item of sorted) {
-      drawItem(item, angle, shadowFactor);
+      drawItem(item, angle, shadowFactor, drawShadow);
     }
     for (const item of placedItems) {
       if (selectedIds.has(item.id)) {
@@ -103,22 +177,68 @@
         ctx.restore();
       }
     }
+    if (snapTarget && dragData) {
+      ctx.save();
+      ctx.strokeStyle = '#00e5ff';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([6, 3]);
+      const target = snapTarget.item;
+      const edge = snapTarget.edge;
+      let x1, y1, x2, y2;
+      if (edge === 'left' || edge === 'right' || edge === 'left-to-right' || edge === 'right-to-left') {
+        const x = (edge === 'left' || edge === 'left-to-right') ? target.x : target.x + target.w;
+        x1 = x; y1 = 0; x2 = x; y2 = canvas.height;
+      } else {
+        const y = (edge === 'top' || edge === 'top-to-bottom') ? target.y : target.y + target.h;
+        x1 = 0; y1 = y; x2 = canvas.width; y2 = y;
+      }
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 
-  function drawItem(item, lightAngle, shadowFactor) {
+  function drawGrid() {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+    ctx.lineWidth = 0.5;
+    const step = 20;
+    for (let x = 0; x <= canvas.width; x += step) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, canvas.height);
+      ctx.stroke();
+    }
+    for (let y = 0; y <= canvas.height; y += step) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(canvas.width, y);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  gridToggle.addEventListener('change', () => {
+    showGrid = gridToggle.checked;
+    drawAll();
+  });
+
+  function drawItem(item, lightAngle, shadowFactor, drawShadow = true) {
     const tex = textures[item.textureIndex];
     if (!tex) return;
     const { x, y, w, h } = item;
-
-    const shadowDX = Math.cos(lightAngle) * 20 * shadowFactor;
-    const shadowDY = -Math.sin(lightAngle) * 20 * shadowFactor;
-
-    ctx.save();
-    ctx.globalAlpha = 0.3;
-    ctx.filter = 'brightness(0)';
-    ctx.drawImage(tex.img, x + shadowDX, y + shadowDY, w, h);
-    ctx.filter = 'none';
-    ctx.restore();
+    if (drawShadow) {
+      const shadowDX = Math.cos(lightAngle) * 20 * shadowFactor;
+      const shadowDY = -Math.sin(lightAngle) * 20 * shadowFactor;
+      ctx.save();
+      ctx.globalAlpha = 0.3;
+      ctx.filter = 'brightness(0)';
+      ctx.drawImage(tex.img, x + shadowDX, y + shadowDY, w, h);
+      ctx.filter = 'none';
+      ctx.restore();
+    }
     ctx.drawImage(tex.img, x, y, w, h);
   }
 
@@ -186,17 +306,10 @@
   }
 
   function undo() {
-    if (historyIndex > 0) {
-      historyIndex--;
-      restoreHistory(history[historyIndex]);
-    }
+    if (historyIndex > 0) { historyIndex--; restoreHistory(history[historyIndex]); }
   }
-
   function redo() {
-    if (historyIndex < history.length - 1) {
-      historyIndex++;
-      restoreHistory(history[historyIndex]);
-    }
+    if (historyIndex < history.length - 1) { historyIndex++; restoreHistory(history[historyIndex]); }
   }
 
   function refreshMaterialPanel() {
@@ -288,9 +401,6 @@
     updateUI();
   }
 
-  let dragData = null;
-  let dragStartPositions = null;
-
   function getItemAt(mx, my) {
     for (let i = placedItems.length - 1; i >= 0; i--) {
       const it = placedItems[i];
@@ -330,6 +440,8 @@
     dragStartPositions = placedItems
       .filter(it => selectedIds.has(it.id))
       .map(it => ({ id: it.id, x: it.x, y: it.y }));
+    snapTarget = null;
+    if (placedItems.length > 200) lowPerformanceMode = true;
   });
 
   canvas.addEventListener('mousemove', (e) => {
@@ -340,6 +452,7 @@
     let dx = mx - dragData.startX;
     let dy = my - dragData.startY;
     const selectedItems = placedItems.filter(it => selectedIds.has(it.id));
+    snapTarget = null;
     if (e.shiftKey && selectedItems.length > 0) {
       const levels = new Set(selectedItems.map(it => it.level));
       if (levels.size === 1) {
@@ -352,22 +465,24 @@
           bounds.maxY = Math.max(bounds.maxY, it.y + it.h + dy);
         }
         let bestDx = dx, bestDy = dy, minDist = 20;
+        let bestOther = null, bestEdge = '';
         for (const other of placedItems) {
           if (selectedIds.has(other.id) || other.level !== targetLevel) continue;
           const tests = [
-            { dist: Math.abs(bounds.minX - other.x), dx: other.x - bounds.minX, dy: 0 },
-            { dist: Math.abs(bounds.maxX - (other.x + other.w)), dx: (other.x + other.w) - bounds.maxX, dy: 0 },
-            { dist: Math.abs(bounds.minX - (other.x + other.w)), dx: (other.x + other.w) - bounds.minX, dy: 0 },
-            { dist: Math.abs(bounds.maxX - other.x), dx: other.x - bounds.maxX, dy: 0 },
-            { dist: Math.abs(bounds.minY - other.y), dx: 0, dy: other.y - bounds.minY },
-            { dist: Math.abs(bounds.maxY - (other.y + other.h)), dx: 0, dy: (other.y + other.h) - bounds.maxY },
-            { dist: Math.abs(bounds.minY - (other.y + other.h)), dx: 0, dy: (other.y + other.h) - bounds.minY },
-            { dist: Math.abs(bounds.maxY - other.y), dx: 0, dy: other.y - bounds.maxY }
+            { dist: Math.abs(bounds.minX - other.x), dx: other.x - bounds.minX, dy: 0, edge: 'left' },
+            { dist: Math.abs(bounds.maxX - (other.x + other.w)), dx: (other.x + other.w) - bounds.maxX, dy: 0, edge: 'right' },
+            { dist: Math.abs(bounds.minX - (other.x + other.w)), dx: (other.x + other.w) - bounds.minX, dy: 0, edge: 'left-to-right' },
+            { dist: Math.abs(bounds.maxX - other.x), dx: other.x - bounds.maxX, dy: 0, edge: 'right-to-left' },
+            { dist: Math.abs(bounds.minY - other.y), dx: 0, dy: other.y - bounds.minY, edge: 'top' },
+            { dist: Math.abs(bounds.maxY - (other.y + other.h)), dx: 0, dy: (other.y + other.h) - bounds.maxY, edge: 'bottom' },
+            { dist: Math.abs(bounds.minY - (other.y + other.h)), dx: 0, dy: (other.y + other.h) - bounds.minY, edge: 'top-to-bottom' },
+            { dist: Math.abs(bounds.maxY - other.y), dx: 0, dy: other.y - bounds.maxY, edge: 'bottom-to-top' }
           ];
           for (const t of tests) {
-            if (t.dist < minDist) { minDist = t.dist; bestDx = dx + t.dx; bestDy = dy + t.dy; }
+            if (t.dist < minDist) { minDist = t.dist; bestDx = dx + t.dx; bestDy = dy + t.dy; bestOther = other; bestEdge = t.edge; }
           }
         }
+        if (bestOther) { snapTarget = { item: bestOther, edge: bestEdge }; }
         dx = bestDx; dy = bestDy;
       }
     }
@@ -378,8 +493,71 @@
     drawAll();
   });
 
-  canvas.addEventListener('mouseup', () => { dragData = null; dragStartPositions = null; });
-  canvas.addEventListener('mouseleave', () => { dragData = null; dragStartPositions = null; });
+  canvas.addEventListener('mouseup', () => {
+    dragData = null;
+    dragStartPositions = null;
+    snapTarget = null;
+    lowPerformanceMode = false;
+    drawAll();
+  });
+  canvas.addEventListener('mouseleave', () => {
+    dragData = null;
+    dragStartPositions = null;
+    snapTarget = null;
+    lowPerformanceMode = false;
+    drawAll();
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey && e.key === 'z') { e.preventDefault(); undo(); }
+    else if (e.ctrlKey && e.key === 'y') { e.preventDefault(); redo(); }
+    else if (e.ctrlKey && e.key === 'c') {
+      e.preventDefault();
+      clipboardBuffer = placedItems.filter(it => selectedIds.has(it.id)).map(it => ({ ...it }));
+    }
+    else if (e.ctrlKey && e.key === 'v') {
+      e.preventDefault();
+      if (clipboardBuffer.length === 0) return;
+      saveHistory();
+      const newItems = clipboardBuffer.map(item => ({
+        ...item,
+        id: nextId++,
+        x: item.x + 30,
+        y: item.y + 30
+      }));
+      placedItems.push(...newItems);
+      selectedIds.clear();
+      newItems.forEach(it => selectedIds.add(it.id));
+      drawAll();
+      updateUI();
+    }
+    else if (e.key === 'Delete' || e.key === 'Backspace') {
+      e.preventDefault();
+      if (selectedIds.size === 0) return;
+      saveHistory();
+      placedItems = placedItems.filter(it => !selectedIds.has(it.id));
+      selectedIds.clear();
+      drawAll();
+      updateUI();
+    }
+
+    const arrowKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+    if (arrowKeys.includes(e.key) && selectedIds.size > 0) {
+      e.preventDefault();
+      const step = e.shiftKey ? 10 : 1;
+      saveHistory();
+      for (const item of placedItems) {
+        if (selectedIds.has(item.id)) {
+          if (e.key === 'ArrowUp') item.y -= step;
+          if (e.key === 'ArrowDown') item.y += step;
+          if (e.key === 'ArrowLeft') item.x -= step;
+          if (e.key === 'ArrowRight') item.x += step;
+        }
+      }
+      drawAll();
+      updateUI();
+    }
+  });
 
   document.getElementById('addBtn').addEventListener('click', () => {
     if (textures.length === 0 || currentTextureIndex < 0) return;
@@ -478,9 +656,30 @@
     return `${y}${m}${d}${hh}${mm}`;
   }
 
+  function showPreview(dataURL) {
+    previewImage.src = dataURL;
+    previewModal.style.display = 'flex';
+  }
+
+  confirmExport.addEventListener('click', () => {
+    if (pendingExportType === 'transparent') {
+      downloadFile(previewImage.src, `${getTimeString()}_透明.png`);
+    } else if (pendingExportType === 'background') {
+      downloadFile(previewImage.src, `${getTimeString()}_带背景.png`);
+    }
+    previewModal.style.display = 'none';
+    pendingExportType = null;
+  });
+
+  cancelExport.addEventListener('click', () => {
+    previewModal.style.display = 'none';
+    pendingExportType = null;
+  });
+
   function exportTransparent() {
     const dataURL = canvas.toDataURL('image/png');
-    downloadFile(dataURL, `${getTimeString()}_透明.png`);
+    pendingExportType = 'transparent';
+    showPreview(dataURL);
   }
 
   function exportWithBackground() {
@@ -507,7 +706,8 @@
     }
     expCtx.drawImage(canvas, 0, 0);
     const dataURL = exportCanvas.toDataURL('image/png');
-    downloadFile(dataURL, `${getTimeString()}_带背景.png`);
+    pendingExportType = 'background';
+    showPreview(dataURL);
   }
 
   function downloadFile(dataURL, filename) {
@@ -520,43 +720,77 @@
   document.getElementById('exportTransparentBtn').addEventListener('click', exportTransparent);
   document.getElementById('exportWithBgBtn').addEventListener('click', exportWithBackground);
 
-  document.addEventListener('keydown', (e) => {
-    if (e.ctrlKey && e.key === 'z') { e.preventDefault(); undo(); }
-    else if (e.ctrlKey && e.key === 'y') { e.preventDefault(); redo(); }
-    else if (e.ctrlKey && e.key === 'c') {
-      e.preventDefault();
-      clipboardBuffer = placedItems.filter(it => selectedIds.has(it.id)).map(it => ({ ...it }));
-    }
-    else if (e.ctrlKey && e.key === 'v') {
-      e.preventDefault();
-      if (clipboardBuffer.length === 0) return;
-      saveHistory();
-      const newItems = clipboardBuffer.map(item => ({
-        ...item,
-        id: nextId++,
-        x: item.x + 30,
-        y: item.y + 30
-      }));
-      placedItems.push(...newItems);
-      selectedIds.clear();
-      newItems.forEach(it => selectedIds.add(it.id));
-      drawAll();
-      updateUI();
-    }
-    else if (e.key === 'Delete' || e.key === 'Backspace') {
-      e.preventDefault();
-      if (selectedIds.size === 0) return;
-      saveHistory();
-      placedItems = placedItems.filter(it => !selectedIds.has(it.id));
-      selectedIds.clear();
-      drawAll();
-      updateUI();
-    }
+  themeToggle.addEventListener('click', () => {
+    document.body.classList.toggle('dark-theme');
+    const isDark = document.body.classList.contains('dark-theme');
+    themeToggle.textContent = isDark ? '浅色模式' : '深色模式';
+    localStorage.setItem('darkTheme', isDark);
+  });
+
+  if (localStorage.getItem('darkTheme') === 'true') {
+    document.body.classList.add('dark-theme');
+    themeToggle.textContent = '浅色模式';
+  }
+
+  shortcutBtn.addEventListener('click', () => {
+    shortcutModal.style.display = 'flex';
+  });
+  document.getElementById('closeShortcut').addEventListener('click', () => {
+    shortcutModal.style.display = 'none';
+  });
+  shortcutModal.addEventListener('click', (e) => {
+    if (e.target === shortcutModal) shortcutModal.style.display = 'none';
+  });
+  previewModal.addEventListener('click', (e) => {
+    if (e.target === previewModal) { previewModal.style.display = 'none'; pendingExportType = null; }
   });
 
   loadPresets();
   renderPresets();
   applyBackgroundStyle();
-  refreshMaterialPanel();
-  drawAll();
+  loadDraft();
+f (localStorage.getItem('darkTheme') === 'true') {
+    document.body.classList.add('dark-theme');
+    themeToggle.textContent = '浅色模式';
+  }
+
+  shortcutBtn.addEventListener('click', () => {
+    shortcutModal.style.display = 'flex';
+  });
+  document.getElementById('closeShortcut').addEventListener('click', () => {
+    shortcutModal.style.display = 'none';
+  });
+  shortcutModal.addEventListener('click', (e) => {
+    if (e.target === shortcutModal) shortcutModal.style.display = 'none';
+  });
+  previewModal.addEventListener('click', (e) => {
+    if (e.target === previewModal) { previewModal.style.display = 'none'; pendingExportType = null; }
+  });
+
+  loadPresets();
+  renderPresets();
+  applyBackgroundStyle();
+  loadDraft();
+})();calStorage.getItem('darkTheme') === 'true') {
+    document.body.classList.add('dark-theme');
+    themeToggle.textContent = '浅色模式';
+  }
+
+  shortcutBtn.addEventListener('click', () => {
+    shortcutModal.style.display = 'flex';
+  });
+  document.getElementById('closeShortcut').addEventListener('click', () => {
+    shortcutModal.style.display = 'none';
+  });
+  shortcutModal.addEventListener('click', (e) => {
+    if (e.target === shortcutModal) shortcutModal.style.display = 'none';
+  });
+  previewModal.addEventListener('click', (e) => {
+    if (e.target === previewModal) { previewModal.style.display = 'none'; pendingExportType = null; }
+  });
+
+  loadPresets();
+  renderPresets();
+  applyBackgroundStyle();
+  loadDraft();
 })();
