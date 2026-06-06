@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Minecraft 材质合成器</title>
+  <title>PixelBlock Studio</title>
   <link rel="stylesheet" href="mao-T.css">
   <link rel="icon" href="Sk.png" type="image/png">
 </head>
@@ -24,8 +24,9 @@
           <input type="number" id="canvasH" value="520" min="100" max="2000" step="1">
           <button id="resizeCanvasBtn">应用</button>
         </div>
-        <div class="control-row" style="margin-top:4px">
-          <button id="savePresetBtn">保存到预设</button>
+        <div class="control-row">
+          <button id="savePresetBtn">保存预设</button>
+          <button id="clearCanvasBtn">清空画布</button>
         </div>
         <div class="preset-list" id="presetList"></div>
       </div>
@@ -38,6 +39,10 @@
         <div class="control-row">
           <button id="checkerBgBtn">棋盘格</button>
           <button id="transparentBgBtn">透明背景</button>
+        </div>
+        <div class="control-row">
+          <label>显示网格</label>
+          <input type="checkbox" id="gridToggle">
         </div>
       </div>
       <div class="section">
@@ -78,7 +83,36 @@
       <div class="section">
         <button id="exportTransparentBtn">导出透明PNG</button>
         <button id="exportWithBgBtn">导出带背景</button>
+        <button id="themeToggle" class="theme-btn">深色模式</button>
+        <button id="shortcutBtn" class="help-btn">?</button>
       </div>
+    </div>
+  </div>
+  <div id="previewModal" class="modal" style="display:none">
+    <div class="modal-content">
+      <h3>导出预览</h3>
+      <img id="previewImage" style="max-width:100%; max-height:60vh;">
+      <div class="modal-buttons">
+        <button id="confirmExport">下载</button>
+        <button id="cancelExport">取消</button>
+      </div>
+    </div>
+  </div>
+  <div id="shortcutModal" class="modal" style="display:none">
+    <div class="modal-content">
+      <h3>快捷键</h3>
+      <ul>
+        <li><kbd>Ctrl+Z</kbd> 撤销</li>
+        <li><kbd>Ctrl+Y</kbd> 重做</li>
+        <li><kbd>Ctrl+C</kbd> 复制选中</li>
+        <li><kbd>Ctrl+V</kbd> 粘贴</li>
+        <li><kbd>Delete / Backspace</kbd> 删除选中</li>
+        <li><kbd>方向键</kbd> 微调位置 (1px)</li>
+        <li><kbd>Shift+方向键</kbd> 微调位置 (10px)</li>
+        <li><kbd>Shift+拖拽</kbd> 吸附对齐</li>
+        <li><kbd>Ctrl+点击</kbd> 多选/取消多选</li>
+      </ul>
+      <button id="closeShortcut">关闭</button>
     </div>
   </div>
   <script src="maouse.js"></script>
