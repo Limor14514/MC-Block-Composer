@@ -12,6 +12,11 @@ body {
   align-items: flex-start;
   min-height: 100vh;
   padding-top: 20px;
+  transition: background 0.3s;
+}
+
+body.dark-theme {
+  background: #1a1a1a;
 }
 
 #app {
@@ -24,6 +29,12 @@ body {
   width: 100%;
   flex-wrap: nowrap;
   box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+  transition: background 0.3s;
+}
+
+body.dark-theme #app {
+  background: #2d2d2d;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.7);
 }
 
 .left {
@@ -67,6 +78,11 @@ canvas {
   padding-bottom: 2px;
 }
 
+body.dark-theme .section-title {
+  color: #ddd;
+  border-color: #555;
+}
+
 .material-panel {
   display: flex;
   flex-wrap: wrap;
@@ -76,6 +92,10 @@ canvas {
   background: #bdc3c7;
   padding: 8px;
   border-radius: 8px;
+}
+
+body.dark-theme .material-panel {
+  background: #444;
 }
 
 .mat-item {
@@ -143,12 +163,25 @@ button, select, input[type="file"] {
   border-radius: 6px;
   background: #fff;
   font-size: 13px;
-  transition: background 0.2s, transform 0.2s;
+  transition: background 0.2s, transform 0.2s, color 0.3s, border-color 0.3s;
+}
+
+body.dark-theme button,
+body.dark-theme select,
+body.dark-theme input[type="file"] {
+  background: #444;
+  color: #eee;
+  border-color: #666;
 }
 
 button:hover, select:hover {
   background: #d5dbdb;
   transform: translateY(-1px);
+}
+
+body.dark-theme button:hover,
+body.dark-theme select:hover {
+  background: #555;
 }
 
 button:active {
@@ -162,6 +195,12 @@ input[type="number"] {
   border-radius: 4px;
 }
 
+body.dark-theme input[type="number"] {
+  background: #555;
+  color: #eee;
+  border-color: #777;
+}
+
 input[type="color"] {
   width: 40px;
   height: 30px;
@@ -172,6 +211,10 @@ input[type="color"] {
 
 label {
   font-size: 13px;
+}
+
+body.dark-theme label {
+  color: #ccc;
 }
 
 select {
@@ -196,8 +239,18 @@ select {
   transition: background 0.2s;
 }
 
+body.dark-theme .preset-item {
+  background: #444;
+  border-color: #666;
+  color: #eee;
+}
+
 .preset-item:hover {
   background: #d5dbdb;
+}
+
+body.dark-theme .preset-item:hover {
+  background: #555;
 }
 
 .preset-item span {
@@ -210,4 +263,73 @@ select {
   cursor: pointer;
   font-size: 14px;
   line-height: 1;
+}
+
+.modal {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: #fff;
+  padding: 20px;
+  border-radius: 12px;
+  max-width: 500px;
+  width: 90%;
+}
+
+body.dark-theme .modal-content {
+  background: #2d2d2d;
+  color: #ddd;
+}
+
+.modal-buttons {
+  display: flex;
+  gap: 10px;
+  margin-top: 15px;
+  justify-content: flex-end;
+}
+
+#shortcutModal ul {
+  list-style: none;
+  margin: 10px 0;
+}
+
+#shortcutModal li {
+  margin-bottom: 5px;
+}
+
+kbd {
+  background: #eee;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 12px;
+  border: 1px solid #aaa;
+}
+
+body.dark-theme kbd {
+  background: #555;
+  border-color: #777;
+  color: #eee;
+}
+
+.theme-btn {
+  margin-top: 4px;
+}
+
+.help-btn {
+  position: absolute;
+  bottom: 15px;
+  right: 15px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  font-weight: bold;
+  font-size: 16px;
 }
