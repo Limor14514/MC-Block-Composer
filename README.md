@@ -40,7 +40,7 @@
 ## 技术实现
 - HTML5 Canvas+CSS+原生JavaScript，无任何第三方框架
 - 所有操作均在浏览器本地完成，无需网络请求，无数据上传
-- - 使用 requestAnimationFrame 优化渲染
-  - - 草稿自动保存至 localStorage，页面恢复后完整复原
+- 使用 requestAnimationFrame 优化渲染
+- 草稿自动保存至 localStorage，页面恢复后完整复原
 
 （当前及支持PC端使用）
