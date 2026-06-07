@@ -25,9 +25,8 @@ body.dark-theme {
   border-radius: 16px;
   display: flex;
   gap: 20px;
-  max-width: 1200px;
   width: 100%;
-  flex-wrap: nowrap;
+  max-width: 1400px;
   box-shadow: 0 10px 30px rgba(0,0,0,0.3);
   transition: background 0.3s;
 }
@@ -37,8 +36,121 @@ body.dark-theme #app {
   box-shadow: 0 10px 30px rgba(0,0,0,0.7);
 }
 
-.left {
+.layer-panel {
+  border: 1px solid #bdc3c7;
+  border-radius: 8px;
+  background: #fff;
+  padding: 8px;
+  width: 140px;
+  max-height: 80vh;
+  overflow-y: auto;
   flex-shrink: 0;
+}
+
+body.dark-theme .layer-panel {
+  background: #3a3a3a;
+  border-color: #555;
+}
+
+.layer-title {
+  font-weight: bold;
+  font-size: 13px;
+  margin-bottom: 6px;
+  color: #2c3e50;
+}
+
+body.dark-theme .layer-title {
+  color: #ddd;
+}
+
+.layer-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 4px;
+  background: #f0f0f0;
+  border-radius: 4px;
+  cursor: grab;
+  transition: background 0.2s;
+}
+
+body.dark-theme .layer-group {
+  background: #4a4a4a;
+}
+
+.layer-group:active {
+  cursor: grabbing;
+}
+
+.layer-group.drag-over {
+  background: #b3d9ff;
+}
+
+body.dark-theme .layer-group.drag-over {
+  background: #5a7a9a;
+}
+
+.layer-level {
+  font-size: 12px;
+  min-width: 30px;
+  text-align: center;
+  color: #555;
+}
+
+body.dark-theme .layer-level {
+  color: #ccc;
+}
+
+.layer-thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  flex: 1;
+}
+
+.layer-thumb {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  image-rendering: pixelated;
+}
+
+.layer-thumb:hover {
+  border-color: #e67e22;
+}
+
+.layer-thumb.selected {
+  border-color: #e67e22;
+  box-shadow: 0 0 4px rgba(230,126,34,0.6);
+}
+
+.layer-thumb.hidden {
+  opacity: 0.4;
+}
+
+.eye-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 2px;
+  line-height: 1;
+  color: #555;
+}
+
+body.dark-theme .eye-btn {
+  color: #ccc;
+}
+
+.canvas-area {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  overflow: auto;
+  max-height: 80vh;
 }
 
 #canvasWrapper {
@@ -46,22 +158,23 @@ body.dark-theme #app {
   background-color: #fff;
   background-size: 20px 20px;
   border-radius: 8px;
-  overflow: hidden;
   display: inline-block;
+  align-self: flex-start;
 }
 
 canvas {
   display: block;
 }
 
-.right {
+.right-panel {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  width: 260px;
+  width: 230px;
   overflow-y: auto;
   max-height: 80vh;
   padding-right: 6px;
+  flex-shrink: 0;
 }
 
 .section {
@@ -332,19 +445,6 @@ body.dark-theme kbd {
   border-radius: 50%;
   font-weight: bold;
   font-size: 16px;
-}
-
-#loadingOverlay {
-  position: fixed;
-  top: 0; left: 0;
-  width: 100%; height: 100%;
-  background: rgba(0,0,0,0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 2000;
-  color: #fff;
-  font-size: 20px;
 }
 
 #loadingHint {
