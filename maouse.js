@@ -12,6 +12,8 @@
   var sizeInput = document.getElementById('sizeInput');
   var levelSlider = document.getElementById('levelSlider');
   var levelInput = document.getElementById('levelInput');
+  var rotationSlider = document.getElementById('rotationSlider');
+  var rotationInput = document.getElementById('rotationInput');
   var lightAngleSlider = document.getElementById('lightAngleSlider');
   var lightAngleInput = document.getElementById('lightAngleInput');
   var shadowLenSlider = document.getElementById('shadowLenSlider');
@@ -29,6 +31,33 @@
   var exportBtn = document.getElementById('exportBtn');
   var loadingHint = document.getElementById('loadingHint');
   var layerList = document.getElementById('layerList');
+
+  var bgImageInput = document.getElementById('bgImageInput');
+  var customBgControls = document.getElementById('customBgControls');
+  var bgScaleSlider = document.getElementById('bgScaleSlider');
+  var bgScaleInput = document.getElementById('bgScaleInput');
+  var bgXSlider = document.getElementById('bgXSlider');
+  var bgXInput = document.getElementById('bgXInput');
+  var bgYSlider = document.getElementById('bgYSlider');
+  var bgYInput = document.getElementById('bgYInput');
+
+  var blurSlider = document.getElementById('blurSlider');
+  var blurInput = document.getElementById('blurInput');
+  var contrastSlider = document.getElementById('contrastSlider');
+  var contrastInput = document.getElementById('contrastInput');
+  var brightnessSlider = document.getElementById('brightnessSlider');
+  var brightnessInput = document.getElementById('brightnessInput');
+  var hueSlider = document.getElementById('hueSlider');
+  var hueInput = document.getElementById('hueInput');
+  var opacitySlider = document.getElementById('opacitySlider');
+  var opacityInput = document.getElementById('opacityInput');
+
+  var textContent = document.getElementById('textContent');
+  var textColor = document.getElementById('textColor');
+  var textBold = document.getElementById('textBold');
+  var textItalic = document.getElementById('textItalic');
+  var textLineThrough = document.getElementById('textLineThrough');
+  var addTextBtn = document.getElementById('addTextBtn');
 
   var bgMode = 'color';
   var textures = [];
@@ -57,6 +86,12 @@
   var resizeStartMouse = null;
   var resizeStartSize = null;
 
+  var bgImage = null;
+  var bgImageDataURL = null;
+  var bgImageScale = 1;
+  var bgImageX = 0;
+  var bgImageY = 0;
+
   function saveDraft() {
     try {
       var draft = {
@@ -70,11 +105,42 @@
         canvasHeight: canvas.height,
         size: sizeInput.value,
         level: levelInput.value,
+        rotation: rotationInput.value,
         lightAngle: lightAngleInput.value,
-        shadowLen: shadowLenInput.value
+        shadowLen: shadowLenInput.value,
+        bgImageDataURL: bgImageDataURL,
+        bgImageScale: bgImageScale,
+        bgImageX: bgImageX,
+        bgImageY: bgImageY
       };
       localStorage.setItem('pixelblock_draft', JSON.stringify(draft));
-    } catch(e) {}
+    } catch(e) {
+      try {
+        if (bgImageDataURL) {
+          alert('背景图过大，无法完全保存草稿。背景图将在刷新后丢失。');
+          var draftWithoutBg = {
+            items: placedItems,
+            textures: textures.map(function(t) { return t.dataURL; }),
+            selected: Object.keys(selectedIds),
+            bgMode: 'color',
+            bgColor: bgColorInput.value,
+            showGrid: showGrid,
+            canvasWidth: canvas.width,
+            canvasHeight: canvas.height,
+            size: sizeInput.value,
+            level: levelInput.value,
+            rotation: rotationInput.value,
+            lightAngle: lightAngleInput.value,
+            shadowLen: shadowLenInput.value,
+            bgImageDataURL: null,
+            bgImageScale: 1,
+            bgImageX: 0,
+            bgImageY: 0
+          };
+          localStorage.setItem('pixelblock_draft', JSON.stringify(draftWithoutBg));
+        }
+      } catch(e2) {}
+    }
   }
 
   function loadDraft() {
@@ -100,15 +166,40 @@
       sizeSlider.value = draft.size || 32;
       levelInput.value = draft.level || 2;
       levelSlider.value = draft.level || 2;
+      rotationInput.value = draft.rotation || 0;
+      rotationSlider.value = draft.rotation || 0;
       lightAngleInput.value = draft.lightAngle || 135;
       lightAngleSlider.value = draft.lightAngle || 135;
       shadowLenInput.value = draft.shadowLen || 1.5;
       shadowLenSlider.value = draft.shadowLen || 1.5;
+      bgImageScale = draft.bgImageScale || 1;
+      bgImageX = draft.bgImageX || 0;
+      bgImageY = draft.bgImageY || 0;
+      bgScaleSlider.value = bgImageScale;
+      bgScaleInput.value = bgImageScale;
+      bgXSlider.value = bgImageX;
+      bgXInput.value = bgImageX;
+      bgYSlider.value = bgImageY;
+      bgYInput.value = bgImageY;
+      bgImageDataURL = draft.bgImageDataURL || null;
+
+      if (bgMode === 'custom') {
+        customBgControls.style.display = 'block';
+      } else {
+        customBgControls.style.display = 'none';
+      }
 
       var urls = draft.textures || [];
-      if (urls.length === 0) {
+      var totalLoads = urls.length;
+      if (bgImageDataURL) totalLoads++;
+      if (totalLoads === 0) {
         nextId = placedItems.reduce(function(max, item) { return Math.max(max, item.id); }, 0) + 1;
-        placedItems.forEach(function(item) { if (item.hidden === undefined) item.hidden = false; });
+        placedItems.forEach(function(item) {
+          if (item.hidden === undefined) item.hidden = false;
+          if (item.rotation === undefined) item.rotation = 0;
+          if (!item.filter) item.filter = { blur: 0, contrast: 100, brightness: 100, hue: 0, opacity: 1 };
+          if (!item.type) item.type = 'image';
+        });
         refreshMaterialPanel();
         drawAll();
         renderLayerPanel();
@@ -116,22 +207,49 @@
         hideLoading();
         return;
       }
+
       showLoading();
       var loaded = 0;
+      function checkAllLoaded() {
+        loaded++;
+        if (loaded === totalLoads) {
+          nextId = placedItems.reduce(function(max, item) { return Math.max(max, item.id); }, 0) + 1;
+          placedItems.forEach(function(item) {
+            if (item.hidden === undefined) item.hidden = false;
+            if (item.rotation === undefined) item.rotation = 0;
+            if (!item.filter) item.filter = { blur: 0, contrast: 100, brightness: 100, hue: 0, opacity: 1 };
+            if (!item.type) item.type = 'image';
+          });
+          refreshMaterialPanel();
+          drawAll();
+          renderLayerPanel();
+          applyBackgroundStyle();
+          hideLoading();
+        }
+      }
+
+      if (bgImageDataURL) {
+        var img = new Image();
+        img.onload = function() {
+          bgImage = img;
+          checkAllLoaded();
+        };
+        img.onerror = function() {
+          bgImageDataURL = null;
+          bgImage = null;
+          checkAllLoaded();
+        };
+        img.src = bgImageDataURL;
+      }
+
       urls.forEach(function(dataURL, idx) {
         var img = new Image();
         img.onload = function() {
           textures[idx] = { img: img, dataURL: dataURL };
-          loaded++;
-          if (loaded === urls.length) {
-            nextId = placedItems.reduce(function(max, item) { return Math.max(max, item.id); }, 0) + 1;
-            placedItems.forEach(function(item) { if (item.hidden === undefined) item.hidden = false; });
-            refreshMaterialPanel();
-            drawAll();
-            renderLayerPanel();
-            applyBackgroundStyle();
-            hideLoading();
-          }
+          checkAllLoaded();
+        };
+        img.onerror = function() {
+          checkAllLoaded();
         };
         img.src = dataURL;
       });
@@ -193,7 +311,7 @@
     var w = parseInt(document.getElementById('canvasW').value);
     var h = parseInt(document.getElementById('canvasH').value);
     if (isNaN(w) || isNaN(h) || w < 100 || h < 100) return;
-    if (w > 900) { alert('画布宽度最大为 900px'); return; }
+    if (w > 1200) { alert('画布宽度最大为 1200px'); return; }
     presets.push({ w: w, h: h });
     savePresets();
   });
@@ -212,6 +330,16 @@
   function drawAll() {
     ctx.imageSmoothingEnabled = false;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (bgMode === 'custom' && bgImage) {
+      ctx.save();
+      ctx.imageSmoothingEnabled = false;
+      var w = bgImage.width * bgImageScale;
+      var h = bgImage.height * bgImageScale;
+      ctx.drawImage(bgImage, bgImageX, bgImageY, w, h);
+      ctx.restore();
+    }
+
     if (showGrid) drawGrid();
     var sorted = placedItems.slice().sort(function(a, b) { return a.level - b.level; });
     var angle = parseFloat(lightAngleInput.value) * Math.PI / 180;
@@ -296,7 +424,22 @@
     drawAll();
   });
 
+  function buildFilterString(filter) {
+    if (!filter) return 'none';
+    var parts = [];
+    if (filter.blur > 0) parts.push('blur(' + filter.blur + 'px)');
+    if (filter.contrast !== 100) parts.push('contrast(' + filter.contrast + '%)');
+    if (filter.brightness !== 100) parts.push('brightness(' + filter.brightness + '%)');
+    if (filter.hue !== 0) parts.push('hue-rotate(' + filter.hue + 'deg)');
+    if (filter.opacity < 1) parts.push('opacity(' + filter.opacity + ')');
+    return parts.length === 0 ? 'none' : parts.join(' ');
+  }
+
   function drawItem(item, lightAngle, shadowFactor, drawShadow) {
+    if (item.type === 'text') {
+      drawTextItem(item, lightAngle, shadowFactor, drawShadow);
+      return;
+    }
     var tex = textures[item.textureIndex];
     if (!tex) return;
     ctx.imageSmoothingEnabled = false;
@@ -304,22 +447,118 @@
     var y = item.y;
     var w = item.w;
     var h = item.h;
+    var rot = item.rotation || 0;
+    var cx = x + w / 2;
+    var cy = y + h / 2;
+    var radians = rot * Math.PI / 180;
+    var itemOpacity = item.filter ? item.filter.opacity : 1;
+
     if (drawShadow) {
+      var shadowAlpha = 0.3 * itemOpacity;
       var shadowDX = Math.cos(lightAngle) * 20 * shadowFactor;
       var shadowDY = -Math.sin(lightAngle) * 20 * shadowFactor;
       ctx.save();
-      ctx.globalAlpha = 0.3;
-      ctx.filter = 'brightness(0)';
-      ctx.drawImage(tex.img, x + shadowDX, y + shadowDY, w, h);
+      ctx.globalAlpha = shadowAlpha;
+      var shadowFilter = 'brightness(0)';
+      if (item.filter && item.filter.blur > 0) shadowFilter += ' blur(' + item.filter.blur + 'px)';
+      ctx.filter = shadowFilter;
+      ctx.translate(cx + shadowDX, cy + shadowDY);
+      if (radians !== 0) ctx.rotate(radians);
+      ctx.drawImage(tex.img, -w / 2, -h / 2, w, h);
       ctx.filter = 'none';
       ctx.restore();
     }
-    ctx.drawImage(tex.img, x, y, w, h);
+
+    ctx.save();
+    var filterString = buildFilterString(item.filter);
+    if (filterString !== 'none') {
+      ctx.filter = filterString;
+    }
+    ctx.translate(cx, cy);
+    if (radians !== 0) ctx.rotate(radians);
+    ctx.drawImage(tex.img, -w / 2, -h / 2, w, h);
+    ctx.restore();
+  }
+
+  function drawTextItem(item, lightAngle, shadowFactor, drawShadow) {
+    var x = item.x;
+    var y = item.y;
+    var w = item.w;
+    var h = item.h;
+    var fontSize = Math.min(w, h);
+    var fontFamily = item.fontFamily || 'Minecraft';
+    var fontWeight = item.bold ? 'bold ' : '';
+    var fontStyle = item.italic ? 'italic ' : '';
+    var fontString = fontStyle + fontWeight + fontSize + 'px ' + fontFamily;
+    var textStr = item.text || '';
+    var textColorVal = item.color || '#000000';
+    var rot = item.rotation || 0;
+    var cx = x + w / 2;
+    var cy = y + h / 2;
+    var radians = rot * Math.PI / 180;
+    var itemOpacity = item.filter ? item.filter.opacity : 1;
+
+    ctx.save();
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'center';
+
+    if (drawShadow) {
+      var shadowAlpha = 0.3 * itemOpacity;
+      var shadowDX = Math.cos(lightAngle) * 20 * shadowFactor;
+      var shadowDY = -Math.sin(lightAngle) * 20 * shadowFactor;
+      ctx.save();
+      ctx.globalAlpha = shadowAlpha;
+      ctx.fillStyle = '#000000';
+      ctx.font = fontString;
+      var shadowFilter = 'none';
+      if (item.filter && item.filter.blur > 0) shadowFilter = 'blur(' + item.filter.blur + 'px)';
+      ctx.filter = shadowFilter;
+      ctx.translate(cx + shadowDX, cy + shadowDY);
+      if (radians !== 0) ctx.rotate(radians);
+      ctx.fillText(textStr, 0, 0);
+      if (item.lineThrough) {
+        var textWidth = ctx.measureText(textStr).width;
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = Math.max(1, fontSize * 0.05);
+        ctx.beginPath();
+        var lineThroughY = -fontSize * 0.1;
+        ctx.moveTo(-textWidth / 2, lineThroughY);
+        ctx.lineTo(textWidth / 2, lineThroughY);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    ctx.save();
+    var filterString = buildFilterString(item.filter);
+    if (filterString !== 'none') {
+      ctx.filter = filterString;
+    }
+    ctx.fillStyle = textColorVal;
+    ctx.font = fontString;
+    ctx.translate(cx, cy);
+    if (radians !== 0) ctx.rotate(radians);
+    ctx.fillText(textStr, 0, 0);
+    if (item.lineThrough) {
+      var textWidth = ctx.measureText(textStr).width;
+      ctx.strokeStyle = textColorVal;
+      ctx.lineWidth = Math.max(1, fontSize * 0.05);
+      ctx.beginPath();
+      var lineThroughY = -fontSize * 0.1;
+      ctx.moveTo(-textWidth / 2, lineThroughY);
+      ctx.lineTo(textWidth / 2, lineThroughY);
+      ctx.stroke();
+    }
+    ctx.restore();
+    ctx.restore();
   }
 
   function updateUI() {
     var count = Object.keys(selectedIds).length;
-    if (count === 0) return;
+    if (count === 0) {
+      resetFilterUI();
+      return;
+    }
     var firstSelected = null;
     for (var i = 0; i < placedItems.length; i++) {
       if (selectedIds[placedItems[i].id]) {
@@ -332,7 +571,99 @@
     sizeSlider.value = firstSelected.w;
     levelInput.value = firstSelected.level;
     levelSlider.value = firstSelected.level;
+    rotationInput.value = firstSelected.rotation || 0;
+    rotationSlider.value = firstSelected.rotation || 0;
+    updateFilterUI(firstSelected.filter);
+
+    if (firstSelected.type === 'text') {
+      textContent.value = firstSelected.text || '';
+      textColor.value = firstSelected.color || '#000000';
+      textBold.checked = firstSelected.bold || false;
+      textItalic.checked = firstSelected.italic || false;
+      textLineThrough.checked = firstSelected.lineThrough || false;
+    }
   }
+
+  function resetFilterUI() {
+    blurSlider.value = 0;
+    blurInput.value = 0;
+    contrastSlider.value = 100;
+    contrastInput.value = 100;
+    brightnessSlider.value = 100;
+    brightnessInput.value = 100;
+    hueSlider.value = 0;
+    hueInput.value = 0;
+    opacitySlider.value = 1;
+    opacityInput.value = 1;
+  }
+
+  function updateFilterUI(filter) {
+    if (!filter) filter = { blur: 0, contrast: 100, brightness: 100, hue: 0, opacity: 1 };
+    blurSlider.value = filter.blur;
+    blurInput.value = filter.blur;
+    contrastSlider.value = filter.contrast;
+    contrastInput.value = filter.contrast;
+    brightnessSlider.value = filter.brightness;
+    brightnessInput.value = filter.brightness;
+    hueSlider.value = filter.hue;
+    hueInput.value = filter.hue;
+    opacitySlider.value = filter.opacity;
+    opacityInput.value = filter.opacity;
+  }
+
+  function applyFilterToSelected(property, value) {
+    placedItems.forEach(function(item) {
+      if (selectedIds[item.id]) {
+        if (!item.filter) item.filter = { blur: 0, contrast: 100, brightness: 100, hue: 0, opacity: 1 };
+        item.filter[property] = value;
+      }
+    });
+    drawAll();
+  }
+
+  function bindFilterChange(property, slider, input) {
+    slider.addEventListener('mousedown', function() { if (Object.keys(selectedIds).length > 0) saveHistory(); });
+    slider.addEventListener('input', function() {
+      input.value = slider.value;
+      applyFilterToSelected(property, parseFloat(slider.value));
+    });
+    input.addEventListener('focus', function() { if (Object.keys(selectedIds).length > 0) saveHistory(); });
+    input.addEventListener('input', function() {
+      var val = parseFloat(input.value);
+      if (isNaN(val)) return;
+      slider.value = val;
+      applyFilterToSelected(property, val);
+    });
+  }
+
+  bindFilterChange('blur', blurSlider, blurInput);
+  bindFilterChange('contrast', contrastSlider, contrastInput);
+  bindFilterChange('brightness', brightnessSlider, brightnessInput);
+  bindFilterChange('hue', hueSlider, hueInput);
+  bindFilterChange('opacity', opacitySlider, opacityInput);
+
+  function applyRotationToSelected(value) {
+    placedItems.forEach(function(item) {
+      if (selectedIds[item.id]) {
+        item.rotation = value;
+      }
+    });
+    drawAll();
+  }
+
+  rotationSlider.addEventListener('mousedown', function() { if (Object.keys(selectedIds).length > 0) saveHistory(); });
+  rotationSlider.addEventListener('input', function() {
+    rotationInput.value = rotationSlider.value;
+    applyRotationToSelected(parseInt(rotationSlider.value));
+  });
+  rotationInput.addEventListener('focus', function() { if (Object.keys(selectedIds).length > 0) saveHistory(); });
+  rotationInput.addEventListener('input', function() {
+    var val = parseInt(rotationInput.value);
+    if (isNaN(val) || val < 0) val = 0;
+    if (val > 360) val = 360;
+    rotationSlider.value = val;
+    applyRotationToSelected(val);
+  });
 
   function applyToSelected(property, value) {
     placedItems.forEach(function(item) {
@@ -351,7 +682,7 @@
 
   function applyBackgroundStyle() {
     var color = bgColorInput.value;
-    if (bgMode === 'transparent') {
+    if (bgMode === 'transparent' || bgMode === 'custom') {
       canvasWrapper.style.backgroundColor = 'transparent';
       canvasWrapper.style.backgroundImage = 'repeating-conic-gradient(#ccc 0% 25%, #fff 0% 50%) 50% / 20px 20px';
     } else {
@@ -363,11 +694,123 @@
   bgColorInput.addEventListener('input', applyBackgroundStyle);
   document.getElementById('colorBgBtn').addEventListener('click', function() {
     bgMode = 'color';
+    bgImageDataURL = null;
+    customBgControls.style.display = 'none';
     applyBackgroundStyle();
+    drawAll();
   });
   document.getElementById('transparentBgBtn').addEventListener('click', function() {
     bgMode = 'transparent';
+    bgImageDataURL = null;
+    customBgControls.style.display = 'none';
     applyBackgroundStyle();
+    drawAll();
+  });
+  document.getElementById('customBgBtn').addEventListener('click', function() {
+    bgImageInput.click();
+  });
+
+  bgImageInput.addEventListener('change', function(e) {
+    var file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      alert('背景图片不能超过 2MB，否则无法保存草稿。');
+      return;
+    }
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+      var dataURL = ev.target.result;
+      var img = new Image();
+      img.onload = function() {
+        bgImage = img;
+        bgImageDataURL = dataURL;
+        bgMode = 'custom';
+        customBgControls.style.display = 'block';
+        bgScaleSlider.value = 1;
+        bgScaleInput.value = 1;
+        bgXSlider.value = 0;
+        bgXInput.value = 0;
+        bgYSlider.value = 0;
+        bgYInput.value = 0;
+        bgImageScale = 1;
+        bgImageX = 0;
+        bgImageY = 0;
+        applyBackgroundStyle();
+        drawAll();
+        saveDraft();
+      };
+      img.src = dataURL;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  bgScaleSlider.addEventListener('input', function() {
+    bgScaleInput.value = bgScaleSlider.value;
+    bgImageScale = parseFloat(bgScaleSlider.value);
+    drawAll();
+  });
+  bgScaleInput.addEventListener('input', function() {
+    var val = parseFloat(bgScaleInput.value);
+    if (isNaN(val)) return;
+    bgScaleSlider.value = val;
+    bgImageScale = val;
+    drawAll();
+  });
+  bgXSlider.addEventListener('input', function() {
+    bgXInput.value = bgXSlider.value;
+    bgImageX = parseInt(bgXSlider.value);
+    drawAll();
+  });
+  bgXInput.addEventListener('input', function() {
+    var val = parseInt(bgXInput.value);
+    if (isNaN(val)) return;
+    bgXSlider.value = val;
+    bgImageX = val;
+    drawAll();
+  });
+  bgYSlider.addEventListener('input', function() {
+    bgYInput.value = bgYSlider.value;
+    bgImageY = parseInt(bgYSlider.value);
+    drawAll();
+  });
+  bgYInput.addEventListener('input', function() {
+    var val = parseInt(bgYInput.value);
+    if (isNaN(val)) return;
+    bgYSlider.value = val;
+    bgImageY = val;
+    drawAll();
+  });
+
+  addTextBtn.addEventListener('click', function() {
+    var text = textContent.value.trim();
+    if (!text) return;
+    saveHistory();
+    var size = parseInt(sizeInput.value) || 32;
+    var level = parseInt(levelInput.value) || 2;
+    var newItem = {
+      id: nextId++,
+      type: 'text',
+      text: text,
+      color: textColor.value,
+      bold: textBold.checked,
+      italic: textItalic.checked,
+      lineThrough: textLineThrough.checked,
+      fontFamily: 'Minecraft',
+      x: canvas.width / 2 - size / 2,
+      y: canvas.height / 2 - size / 2,
+      w: size,
+      h: size,
+      level: level,
+      rotation: 0,
+      hidden: false,
+      filter: { blur: 0, contrast: 100, brightness: 100, hue: 0, opacity: 1 }
+    };
+    placedItems.push(newItem);
+    selectedIds = {};
+    selectedIds[newItem.id] = true;
+    drawAll();
+    renderLayerPanel();
+    updateUI();
   });
 
   function saveHistory() {
@@ -479,13 +922,16 @@
     var level = parseInt(levelInput.value) || 2;
     var newItem = {
       id: nextId++,
+      type: 'image',
       textureIndex: textureIdx,
       x: canvas.width / 2 - size / 2,
       y: canvas.height / 2 - size / 2,
       w: size,
       h: size,
       level: level,
-      hidden: false
+      rotation: 0,
+      hidden: false,
+      filter: { blur: 0, contrast: 100, brightness: 100, hue: 0, opacity: 1 }
     };
     placedItems.push(newItem);
     selectedIds = {};
@@ -706,7 +1152,12 @@
       if (clipboardBuffer.length === 0) return;
       saveHistory();
       var newItems = clipboardBuffer.map(function(item) {
-        return Object.assign({}, item, { id: nextId++, x: item.x + 30, y: item.y + 30 });
+        var copy = Object.assign({}, item);
+        copy.id = nextId++;
+        copy.x = copy.x + 30;
+        copy.y = copy.y + 30;
+        copy.filter = Object.assign({}, item.filter);
+        return copy;
       });
       placedItems = placedItems.concat(newItems);
       selectedIds = {};
@@ -819,7 +1270,7 @@
 
   function resizeCanvas(w, h) {
     if (isNaN(w) || isNaN(h) || w < 100 || h < 100) return;
-    if (w > 900) { alert('画布宽度最大为 900px'); return; }
+    if (w > 1200) { alert('画布宽度最大为 1200px'); return; }
     var tempCanvas = document.createElement('canvas');
     tempCanvas.width = canvas.width;
     tempCanvas.height = canvas.height;
@@ -878,36 +1329,138 @@
     tempCanvas.height = canvas.height;
     var tempCtx = tempCanvas.getContext('2d');
     tempCtx.imageSmoothingEnabled = false;
-    if (bgMode !== 'transparent') {
+
+    if (bgMode === 'custom' && bgImage) {
+      tempCtx.save();
+      tempCtx.imageSmoothingEnabled = false;
+      var w = bgImage.width * bgImageScale;
+      var h = bgImage.height * bgImageScale;
+      tempCtx.drawImage(bgImage, bgImageX, bgImageY, w, h);
+      tempCtx.restore();
+    } else if (bgMode === 'color') {
       tempCtx.fillStyle = bgColorInput.value;
       tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
     }
+
     var sorted = placedItems.slice().sort(function(a, b) { return a.level - b.level; });
     var angle = parseFloat(lightAngleInput.value) * Math.PI / 180;
     var shadowFactor = parseFloat(shadowLenInput.value);
     sorted.forEach(function(item) {
       if (item.hidden) return;
-      var tex = textures[item.textureIndex];
-      if (!tex) return;
-      var x = item.x, y = item.y, w = item.w, h = item.h;
-      var shadowDX = Math.cos(angle) * 20 * shadowFactor;
-      var shadowDY = -Math.sin(angle) * 20 * shadowFactor;
-      tempCtx.save();
-      tempCtx.globalAlpha = 0.3;
-      tempCtx.filter = 'brightness(0)';
-      tempCtx.drawImage(tex.img, x + shadowDX, y + shadowDY, w, h);
-      tempCtx.filter = 'none';
-      tempCtx.restore();
-      tempCtx.drawImage(tex.img, x, y, w, h);
+      if (item.type === 'text') {
+        drawTextItemToCtx(tempCtx, item, angle, shadowFactor);
+      } else {
+        drawImageItemToCtx(tempCtx, item, angle, shadowFactor);
+      }
     });
+
     var dataURL = tempCanvas.toDataURL('image/png');
     if (bgMode === 'transparent') {
       pendingExportFilename = getTimeString() + '_透明.png';
+    } else if (bgMode === 'custom') {
+      pendingExportFilename = getTimeString() + '_自定义背景.png';
     } else {
       pendingExportFilename = getTimeString() + '_带背景.png';
     }
     pendingExportDataURL = dataURL;
     showPreview(dataURL);
+  }
+
+  function drawImageItemToCtx(ctx, item, lightAngle, shadowFactor) {
+    var tex = textures[item.textureIndex];
+    if (!tex) return;
+    var x = item.x, y = item.y, w = item.w, h = item.h, rot = item.rotation || 0;
+    var cx = x + w / 2, cy = y + h / 2, radians = rot * Math.PI / 180;
+    var itemOpacity = item.filter ? item.filter.opacity : 1;
+
+    var shadowDX = Math.cos(lightAngle) * 20 * shadowFactor;
+    var shadowDY = -Math.sin(lightAngle) * 20 * shadowFactor;
+    ctx.save();
+    ctx.globalAlpha = 0.3 * itemOpacity;
+    var shadowFilter = 'brightness(0)';
+    if (item.filter && item.filter.blur > 0) shadowFilter += ' blur(' + item.filter.blur + 'px)';
+    ctx.filter = shadowFilter;
+    ctx.translate(cx + shadowDX, cy + shadowDY);
+    if (radians !== 0) ctx.rotate(radians);
+    ctx.drawImage(tex.img, -w / 2, -h / 2, w, h);
+    ctx.filter = 'none';
+    ctx.restore();
+
+    ctx.save();
+    var filterString = buildFilterString(item.filter);
+    if (filterString !== 'none') {
+      ctx.filter = filterString;
+    }
+    ctx.translate(cx, cy);
+    if (radians !== 0) ctx.rotate(radians);
+    ctx.drawImage(tex.img, -w / 2, -h / 2, w, h);
+    ctx.restore();
+  }
+
+  function drawTextItemToCtx(ctx, item, lightAngle, shadowFactor) {
+    var x = item.x, y = item.y, w = item.w, h = item.h;
+    var fontSize = Math.min(w, h);
+    var fontFamily = item.fontFamily || 'Minecraft';
+    var fontWeight = item.bold ? 'bold ' : '';
+    var fontStyle = item.italic ? 'italic ' : '';
+    var fontString = fontStyle + fontWeight + fontSize + 'px ' + fontFamily;
+    var textStr = item.text || '';
+    var textColorVal = item.color || '#000000';
+    var rot = item.rotation || 0;
+    var cx = x + w / 2, cy = y + h / 2, radians = rot * Math.PI / 180;
+    var itemOpacity = item.filter ? item.filter.opacity : 1;
+
+    ctx.save();
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'center';
+
+    var shadowAlpha = 0.3 * itemOpacity;
+    var shadowDX = Math.cos(lightAngle) * 20 * shadowFactor;
+    var shadowDY = -Math.sin(lightAngle) * 20 * shadowFactor;
+    ctx.save();
+    ctx.globalAlpha = shadowAlpha;
+    ctx.fillStyle = '#000000';
+    ctx.font = fontString;
+    var shadowFilter = 'none';
+    if (item.filter && item.filter.blur > 0) shadowFilter = 'blur(' + item.filter.blur + 'px)';
+    ctx.filter = shadowFilter;
+    ctx.translate(cx + shadowDX, cy + shadowDY);
+    if (radians !== 0) ctx.rotate(radians);
+    ctx.fillText(textStr, 0, 0);
+    if (item.lineThrough) {
+      var textWidth = ctx.measureText(textStr).width;
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = Math.max(1, fontSize * 0.05);
+      ctx.beginPath();
+      var lineThroughY = -fontSize * 0.1;
+      ctx.moveTo(-textWidth / 2, lineThroughY);
+      ctx.lineTo(textWidth / 2, lineThroughY);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    ctx.save();
+    var filterString = buildFilterString(item.filter);
+    if (filterString !== 'none') {
+      ctx.filter = filterString;
+    }
+    ctx.fillStyle = textColorVal;
+    ctx.font = fontString;
+    ctx.translate(cx, cy);
+    if (radians !== 0) ctx.rotate(radians);
+    ctx.fillText(textStr, 0, 0);
+    if (item.lineThrough) {
+      var textWidth = ctx.measureText(textStr).width;
+      ctx.strokeStyle = textColorVal;
+      ctx.lineWidth = Math.max(1, fontSize * 0.05);
+      ctx.beginPath();
+      var lineThroughY = -fontSize * 0.1;
+      ctx.moveTo(-textWidth / 2, lineThroughY);
+      ctx.lineTo(textWidth / 2, lineThroughY);
+      ctx.stroke();
+    }
+    ctx.restore();
+    ctx.restore();
   }
 
   function downloadFile(dataURL, filename) {
@@ -1001,41 +1554,126 @@
       var thumbsDiv = document.createElement('div');
       thumbsDiv.className = 'layer-thumbs';
       levelMap[level].forEach(function(item) {
-        var thumb = document.createElement('img');
-        var tex = textures[item.textureIndex];
-        if (tex) thumb.src = tex.dataURL;
-        thumb.className = 'layer-thumb';
-        if (selectedIds[item.id]) thumb.classList.add('selected');
-        if (item.hidden) thumb.classList.add('hidden');
-        thumb.addEventListener('click', function(e) {
-          e.stopPropagation();
-          if (e.ctrlKey) {
-            if (selectedIds[item.id]) delete selectedIds[item.id];
-            else selectedIds[item.id] = true;
-          } else {
-            selectedIds = {};
-            selectedIds[item.id] = true;
-          }
-          drawAll();
-          renderLayerPanel();
-          updateUI();
-        });
-        var eyeBtn = document.createElement('button');
-        eyeBtn.className = 'eye-btn';
-        eyeBtn.textContent = item.hidden ? '👁‍🗨' : '👁';
-        eyeBtn.title = '显示/隐藏';
-        eyeBtn.addEventListener('click', function(e) {
-          e.stopPropagation();
-          item.hidden = !item.hidden;
-          drawAll();
-          renderLayerPanel();
-        });
-        var thumbWrapper = document.createElement('span');
-        thumbWrapper.style.display = 'inline-flex';
-        thumbWrapper.style.alignItems = 'center';
-        thumbWrapper.appendChild(thumb);
-        thumbWrapper.appendChild(eyeBtn);
-        thumbsDiv.appendChild(thumbWrapper);
+        if (item.type === 'text') {
+          var textSpan = document.createElement('span');
+          textSpan.textContent = item.text;
+          textSpan.className = 'layer-thumb layer-text-thumb';
+          textSpan.style.display = 'inline-block';
+          textSpan.style.width = '24px';
+          textSpan.style.height = '24px';
+          textSpan.style.lineHeight = '24px';
+          textSpan.style.textAlign = 'center';
+          textSpan.style.fontSize = '10px';
+          textSpan.style.overflow = 'hidden';
+          textSpan.style.whiteSpace = 'nowrap';
+          textSpan.style.textOverflow = 'ellipsis';
+          textSpan.style.background = '#ddd';
+          textSpan.style.border = '1px solid transparent';
+          textSpan.style.imageRendering = 'pixelated';
+          if (selectedIds[item.id]) textSpan.classList.add('selected');
+          if (item.hidden) textSpan.classList.add('hidden');
+
+          textSpan.addEventListener('click', function(e) {
+            e.stopPropagation();
+            if (e.ctrlKey) {
+              if (selectedIds[item.id]) delete selectedIds[item.id];
+              else selectedIds[item.id] = true;
+            } else {
+              selectedIds = {};
+              selectedIds[item.id] = true;
+            }
+            drawAll();
+            renderLayerPanel();
+            updateUI();
+          });
+
+          textSpan.addEventListener('dblclick', function(e) {
+            e.stopPropagation();
+            e.preventDefault();
+            textSpan.contentEditable = true;
+            textSpan.focus();
+            var range = document.createRange();
+            range.selectNodeContents(textSpan);
+            var sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(range);
+
+            textSpan.addEventListener('blur', function finishEdit() {
+              textSpan.contentEditable = false;
+              var newText = textSpan.textContent.trim();
+              if (newText && newText !== item.text) {
+                saveHistory();
+                item.text = newText;
+                drawAll();
+                renderLayerPanel();
+                updateUI();
+              } else if (newText === '') {
+                textSpan.textContent = item.text;
+              }
+              textSpan.removeEventListener('blur', finishEdit);
+            });
+
+            textSpan.addEventListener('keydown', function(ev) {
+              if (ev.key === 'Enter') {
+                ev.preventDefault();
+                textSpan.blur();
+              }
+            });
+          });
+
+          var eyeBtn = document.createElement('button');
+          eyeBtn.className = 'eye-btn';
+          eyeBtn.textContent = item.hidden ? '👁‍🗨' : '👁';
+          eyeBtn.title = '显示/隐藏';
+          eyeBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            item.hidden = !item.hidden;
+            drawAll();
+            renderLayerPanel();
+          });
+          var thumbWrapper = document.createElement('span');
+          thumbWrapper.style.display = 'inline-flex';
+          thumbWrapper.style.alignItems = 'center';
+          thumbWrapper.appendChild(textSpan);
+          thumbWrapper.appendChild(eyeBtn);
+          thumbsDiv.appendChild(thumbWrapper);
+        } else {
+          var thumb = document.createElement('img');
+          var tex = textures[item.textureIndex];
+          if (tex) thumb.src = tex.dataURL;
+          thumb.className = 'layer-thumb';
+          if (selectedIds[item.id]) thumb.classList.add('selected');
+          if (item.hidden) thumb.classList.add('hidden');
+          thumb.addEventListener('click', function(e) {
+            e.stopPropagation();
+            if (e.ctrlKey) {
+              if (selectedIds[item.id]) delete selectedIds[item.id];
+              else selectedIds[item.id] = true;
+            } else {
+              selectedIds = {};
+              selectedIds[item.id] = true;
+            }
+            drawAll();
+            renderLayerPanel();
+            updateUI();
+          });
+          var eyeBtn = document.createElement('button');
+          eyeBtn.className = 'eye-btn';
+          eyeBtn.textContent = item.hidden ? '👁‍🗨' : '👁';
+          eyeBtn.title = '显示/隐藏';
+          eyeBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            item.hidden = !item.hidden;
+            drawAll();
+            renderLayerPanel();
+          });
+          var thumbWrapper = document.createElement('span');
+          thumbWrapper.style.display = 'inline-flex';
+          thumbWrapper.style.alignItems = 'center';
+          thumbWrapper.appendChild(thumb);
+          thumbWrapper.appendChild(eyeBtn);
+          thumbsDiv.appendChild(thumbWrapper);
+        }
       });
       group.appendChild(thumbsDiv);
       layerList.appendChild(group);
@@ -1046,4 +1684,5 @@
   renderPresets();
   applyBackgroundStyle();
   loadDraft();
+  document.fonts.ready.then(function() { drawAll(); });
 })();
