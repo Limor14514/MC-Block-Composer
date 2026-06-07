@@ -1,3 +1,8 @@
+@font-face {
+  font-family: 'Minecraft';
+  src: url('Minecraft.ttf') format('truetype');
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -26,7 +31,7 @@ body.dark-theme {
   display: flex;
   gap: 20px;
   width: 100%;
-  max-width: 1400px;
+  max-width: 1600px;
   box-shadow: 0 10px 30px rgba(0,0,0,0.3);
   transition: background 0.3s;
 }
@@ -170,7 +175,7 @@ canvas {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  width: 230px;
+  width: 280px;
   overflow-y: auto;
   max-height: 80vh;
   padding-right: 6px;
@@ -302,7 +307,7 @@ button:active {
 }
 
 input[type="number"] {
-  width: 60px;
+  width: 70px;
   padding: 4px;
   border: 1px solid #bdc3c7;
   border-radius: 4px;
