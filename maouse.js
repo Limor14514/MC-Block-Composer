@@ -20,19 +20,23 @@
   var gridToggle = document.getElementById('gridToggle');
   var previewModal = document.getElementById('previewModal');
   var previewImage = document.getElementById('previewImage');
+  var previewSizeInfo = document.getElementById('previewSizeInfo');
   var confirmExport = document.getElementById('confirmExport');
   var cancelExport = document.getElementById('cancelExport');
   var shortcutModal = document.getElementById('shortcutModal');
   var themeToggle = document.getElementById('themeToggle');
   var shortcutBtn = document.getElementById('shortcutBtn');
+  var exportBtn = document.getElementById('exportBtn');
+  var loadingHint = document.getElementById('loadingHint');
 
-  var bgMode = 'checkerboard';
+  var bgMode = 'color';
   var textures = [];
   var placedItems = [];
   var selectedIds = {};
   var nextId = 1;
   var currentTextureIndex = -1;
-  var pendingExportType = null;
+  var pendingExportDataURL = null;
+  var pendingExportFilename = null;
   var showGrid = false;
   var snapTarget = null;
 
@@ -55,7 +59,13 @@
         selected: Object.keys(selectedIds),
         bgMode: bgMode,
         bgColor: bgColorInput.value,
-        showGrid: showGrid
+        showGrid: showGrid,
+        canvasWidth: canvas.width,
+        canvasHeight: canvas.height,
+        size: sizeInput.value,
+        level: levelInput.value,
+        lightAngle: lightAngleInput.value,
+        shadowLen: shadowLenInput.value
       };
       localStorage.setItem('pixelblock_draft', JSON.stringify(draft));
     } catch(e) {}
@@ -70,19 +80,36 @@
       var ids = draft.selected || [];
       selectedIds = {};
       ids.forEach(function(id) { selectedIds[id] = true; });
-      bgMode = draft.bgMode || 'checkerboard';
+      bgMode = draft.bgMode || 'color';
       bgColorInput.value = draft.bgColor || '#ffffff';
       showGrid = draft.showGrid || false;
       gridToggle.checked = showGrid;
+      if (draft.canvasWidth && draft.canvasHeight) {
+        canvas.width = draft.canvasWidth;
+        canvas.height = draft.canvasHeight;
+        canvas.style.width = draft.canvasWidth + 'px';
+        canvas.style.height = draft.canvasHeight + 'px';
+      }
+      sizeInput.value = draft.size || 32;
+      sizeSlider.value = draft.size || 32;
+      levelInput.value = draft.level || 2;
+      levelSlider.value = draft.level || 2;
+      lightAngleInput.value = draft.lightAngle || 135;
+      lightAngleSlider.value = draft.lightAngle || 135;
+      shadowLenInput.value = draft.shadowLen || 1.5;
+      shadowLenSlider.value = draft.shadowLen || 1.5;
+
       var urls = draft.textures || [];
-      var loaded = 0;
       if (urls.length === 0) {
         nextId = placedItems.reduce(function(max, item) { return Math.max(max, item.id); }, 0) + 1;
         refreshMaterialPanel();
         drawAll();
         applyBackgroundStyle();
+        hideLoading();
         return;
       }
+      showLoading();
+      var loaded = 0;
       urls.forEach(function(dataURL, idx) {
         var img = new Image();
         img.onload = function() {
@@ -93,11 +120,20 @@
             refreshMaterialPanel();
             drawAll();
             applyBackgroundStyle();
+            hideLoading();
           }
         };
         img.src = dataURL;
       });
     } catch(e) {}
+  }
+
+  function showLoading() {
+    if (loadingHint) loadingHint.style.display = 'block';
+  }
+
+  function hideLoading() {
+    if (loadingHint) loadingHint.style.display = 'none';
   }
 
   window.addEventListener('beforeunload', saveDraft);
@@ -162,6 +198,7 @@
   });
 
   function drawAll() {
+    ctx.imageSmoothingEnabled = false;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     if (showGrid) drawGrid();
     var sorted = placedItems.slice().sort(function(a, b) { return a.level - b.level; });
@@ -232,6 +269,7 @@
   function drawItem(item, lightAngle, shadowFactor, drawShadow) {
     var tex = textures[item.textureIndex];
     if (!tex) return;
+    ctx.imageSmoothingEnabled = false;
     var x = item.x;
     var y = item.y;
     var w = item.w;
@@ -252,8 +290,6 @@
   function updateUI() {
     var count = Object.keys(selectedIds).length;
     if (count === 0) {
-      sizeInput.value = 32; sizeSlider.value = 32;
-      levelInput.value = 2;  levelSlider.value = 2;
       return;
     }
     var firstSelected = null;
@@ -264,8 +300,10 @@
       }
     }
     if (!firstSelected) return;
-    sizeInput.value = firstSelected.w;  sizeSlider.value = firstSelected.w;
-    levelInput.value = firstSelected.level; levelSlider.value = firstSelected.level;
+    sizeInput.value = firstSelected.w;
+    sizeSlider.value = firstSelected.w;
+    levelInput.value = firstSelected.level;
+    levelSlider.value = firstSelected.level;
   }
 
   function applyToSelected(property, value) {
@@ -287,15 +325,15 @@
     if (bgMode === 'transparent') {
       canvasWrapper.style.backgroundColor = 'transparent';
       canvasWrapper.style.backgroundImage = 'repeating-conic-gradient(#ccc 0% 25%, #fff 0% 50%) 50% / 20px 20px';
-      return;
+    } else {
+      canvasWrapper.style.backgroundColor = color;
+      canvasWrapper.style.backgroundImage = 'none';
     }
-    canvasWrapper.style.backgroundColor = color;
-    canvasWrapper.style.backgroundImage = 'repeating-conic-gradient(' + color + ' 0% 25%, #fff 0% 50%) 50% / 20px 20px';
   }
 
   bgColorInput.addEventListener('input', applyBackgroundStyle);
-  document.getElementById('checkerBgBtn').addEventListener('click', function() {
-    bgMode = 'checkerboard';
+  document.getElementById('colorBgBtn').addEventListener('click', function() {
+    bgMode = 'color';
     applyBackgroundStyle();
   });
   document.getElementById('transparentBgBtn').addEventListener('click', function() {
@@ -632,7 +670,7 @@
   }
   function bindLevelChange() {
     var val = parseInt(levelInput.value);
-    if (isNaN(val) || val < -10 || val > 10) return;
+    if (isNaN(val) || val < -50 || val > 50) return;
     levelSlider.value = val;
     if (Object.keys(selectedIds).length > 0) applyToSelected('level', val);
   }
@@ -658,7 +696,9 @@
     var tempCanvas = document.createElement('canvas');
     tempCanvas.width = canvas.width;
     tempCanvas.height = canvas.height;
-    tempCanvas.getContext('2d').drawImage(canvas, 0, 0);
+    var tempCtx = tempCanvas.getContext('2d');
+    tempCtx.imageSmoothingEnabled = false;
+    tempCtx.drawImage(canvas, 0, 0);
     canvas.width = w;
     canvas.height = h;
     canvas.style.width = w + 'px';
@@ -686,56 +726,45 @@
 
   function showPreview(dataURL) {
     previewImage.src = dataURL;
+    previewSizeInfo.textContent = canvas.width + ' x ' + canvas.height + ' 像素';
     previewModal.style.display = 'flex';
   }
 
   confirmExport.addEventListener('click', function() {
-    if (pendingExportType === 'transparent') {
-      downloadFile(previewImage.src, getTimeString() + '_透明.png');
-    } else if (pendingExportType === 'background') {
-      downloadFile(previewImage.src, getTimeString() + '_带背景.png');
+    if (pendingExportDataURL) {
+      downloadFile(pendingExportDataURL, pendingExportFilename);
     }
     previewModal.style.display = 'none';
-    pendingExportType = null;
+    pendingExportDataURL = null;
+    pendingExportFilename = null;
   });
 
   cancelExport.addEventListener('click', function() {
     previewModal.style.display = 'none';
-    pendingExportType = null;
+    pendingExportDataURL = null;
+    pendingExportFilename = null;
   });
 
-  function exportTransparent() {
-    var dataURL = canvas.toDataURL('image/png');
-    pendingExportType = 'transparent';
-    showPreview(dataURL);
-  }
-
-  function exportWithBackground() {
-    var exportCanvas = document.createElement('canvas');
-    exportCanvas.width = canvas.width;
-    exportCanvas.height = canvas.height;
-    var expCtx = exportCanvas.getContext('2d');
-    expCtx.imageSmoothingEnabled = false;
-    var color = bgColorInput.value;
-
+  function doExport() {
     if (bgMode === 'transparent') {
-      expCtx.clearRect(0, 0, exportCanvas.width, exportCanvas.height);
+      var dataURL = canvas.toDataURL('image/png');
+      pendingExportDataURL = dataURL;
+      pendingExportFilename = getTimeString() + '_透明.png';
+      showPreview(dataURL);
     } else {
-      expCtx.fillStyle = color;
+      var exportCanvas = document.createElement('canvas');
+      exportCanvas.width = canvas.width;
+      exportCanvas.height = canvas.height;
+      var expCtx = exportCanvas.getContext('2d');
+      expCtx.imageSmoothingEnabled = false;
+      expCtx.fillStyle = bgColorInput.value;
       expCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
-      var size = 20;
-      var light = color, dark = '#ffffff';
-      for (var y = 0; y < exportCanvas.height; y += size) {
-        for (var x = 0; x < exportCanvas.width; x += size) {
-          expCtx.fillStyle = ((x / size + y / size) % 2 === 0) ? light : dark;
-          expCtx.fillRect(x, y, size, size);
-        }
-      }
+      expCtx.drawImage(canvas, 0, 0);
+      var dataURL = exportCanvas.toDataURL('image/png');
+      pendingExportDataURL = dataURL;
+      pendingExportFilename = getTimeString() + '_带背景.png';
+      showPreview(dataURL);
     }
-    expCtx.drawImage(canvas, 0, 0);
-    var dataURL = exportCanvas.toDataURL('image/png');
-    pendingExportType = 'background';
-    showPreview(dataURL);
   }
 
   function downloadFile(dataURL, filename) {
@@ -745,8 +774,7 @@
     link.click();
   }
 
-  document.getElementById('exportTransparentBtn').addEventListener('click', exportTransparent);
-  document.getElementById('exportWithBgBtn').addEventListener('click', exportWithBackground);
+  exportBtn.addEventListener('click', doExport);
 
   themeToggle.addEventListener('click', function() {
     document.body.classList.toggle('dark-theme');
@@ -770,7 +798,11 @@
     if (e.target === shortcutModal) shortcutModal.style.display = 'none';
   });
   previewModal.addEventListener('click', function(e) {
-    if (e.target === previewModal) { previewModal.style.display = 'none'; pendingExportType = null; }
+    if (e.target === previewModal) {
+      previewModal.style.display = 'none';
+      pendingExportDataURL = null;
+      pendingExportFilename = null;
+    }
   });
 
   loadPresets();
