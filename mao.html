@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="mao-T.css">
 </head>
 <body>
+  <div id="loadingHint">神经元恢复中…</div>
   <div id="app">
     <div class="left">
       <div id="canvasWrapper">
@@ -36,7 +37,7 @@
           <input type="color" id="bgColor" value="#ffffff">
         </div>
         <div class="control-row">
-          <button id="checkerBgBtn">棋盘格</button>
+          <button id="colorBgBtn">纯色背景</button>
           <button id="transparentBgBtn">透明背景</button>
         </div>
         <div class="control-row">
@@ -64,8 +65,8 @@
           </div>
           <div class="control-row">
             <label>高度:</label>
-            <input type="range" id="levelSlider" min="-10" max="10" value="2">
-            <input type="number" id="levelInput" min="-10" max="10" value="2">
+            <input type="range" id="levelSlider" min="-50" max="50" value="2">
+            <input type="number" id="levelInput" min="-50" max="50" value="2">
           </div>
           <div class="control-row">
             <label>光源角:</label>
@@ -80,8 +81,7 @@
         </div>
       </div>
       <div class="section">
-        <button id="exportTransparentBtn">导出透明PNG</button>
-        <button id="exportWithBgBtn">导出带背景</button>
+        <button id="exportBtn">导出PNG</button>
         <button id="themeToggle" class="theme-btn">深色模式</button>
         <button id="shortcutBtn" class="help-btn">?</button>
       </div>
@@ -91,6 +91,7 @@
     <div class="modal-content">
       <h3>导出预览</h3>
       <img id="previewImage" style="max-width:100%; max-height:60vh;">
+      <p id="previewSizeInfo"></p>
       <div class="modal-buttons">
         <button id="confirmExport">下载</button>
         <button id="cancelExport">取消</button>
