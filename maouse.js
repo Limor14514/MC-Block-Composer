@@ -28,6 +28,7 @@
   var shortcutBtn = document.getElementById('shortcutBtn');
   var exportBtn = document.getElementById('exportBtn');
   var loadingHint = document.getElementById('loadingHint');
+  var layerList = document.getElementById('layerList');
 
   var bgMode = 'color';
   var textures = [];
@@ -50,6 +51,11 @@
   var dragData = null;
   var dragStartPositions = null;
   var lowPerformanceMode = false;
+
+  var editingItemId = null;
+  var resizingItemId = null;
+  var resizeStartMouse = null;
+  var resizeStartSize = null;
 
   function saveDraft() {
     try {
@@ -102,8 +108,10 @@
       var urls = draft.textures || [];
       if (urls.length === 0) {
         nextId = placedItems.reduce(function(max, item) { return Math.max(max, item.id); }, 0) + 1;
+        placedItems.forEach(function(item) { if (item.hidden === undefined) item.hidden = false; });
         refreshMaterialPanel();
         drawAll();
+        renderLayerPanel();
         applyBackgroundStyle();
         hideLoading();
         return;
@@ -117,8 +125,10 @@
           loaded++;
           if (loaded === urls.length) {
             nextId = placedItems.reduce(function(max, item) { return Math.max(max, item.id); }, 0) + 1;
+            placedItems.forEach(function(item) { if (item.hidden === undefined) item.hidden = false; });
             refreshMaterialPanel();
             drawAll();
+            renderLayerPanel();
             applyBackgroundStyle();
             hideLoading();
           }
@@ -193,7 +203,9 @@
     saveHistory();
     placedItems = [];
     selectedIds = {};
+    editingItemId = null;
     drawAll();
+    renderLayerPanel();
     updateUI();
   });
 
@@ -206,9 +218,10 @@
     var shadowFactor = parseFloat(shadowLenInput.value);
     var drawShadow = !lowPerformanceMode;
     sorted.forEach(function(item) {
-      drawItem(item, angle, shadowFactor, drawShadow);
+      if (!item.hidden) drawItem(item, angle, shadowFactor, drawShadow);
     });
     placedItems.forEach(function(item) {
+      if (item.hidden) return;
       if (selectedIds[item.id]) {
         ctx.save();
         ctx.strokeStyle = '#ff0';
@@ -218,6 +231,23 @@
         ctx.restore();
       }
     });
+    if (editingItemId) {
+      var editItem = null;
+      for (var i = 0; i < placedItems.length; i++) {
+        if (placedItems[i].id === editingItemId) { editItem = placedItems[i]; break; }
+      }
+      if (editItem) {
+        var handleX = editItem.x + editItem.w - 8;
+        var handleY = editItem.y + editItem.h - 8;
+        ctx.save();
+        ctx.fillStyle = '#fff';
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 1;
+        ctx.fillRect(handleX, handleY, 8, 8);
+        ctx.strokeRect(handleX, handleY, 8, 8);
+        ctx.restore();
+      }
+    }
     if (snapTarget && dragData) {
       ctx.save();
       ctx.strokeStyle = '#00e5ff';
@@ -289,9 +319,7 @@
 
   function updateUI() {
     var count = Object.keys(selectedIds).length;
-    if (count === 0) {
-      return;
-    }
+    if (count === 0) return;
     var firstSelected = null;
     for (var i = 0; i < placedItems.length; i++) {
       if (selectedIds[placedItems[i].id]) {
@@ -318,6 +346,7 @@
       }
     });
     drawAll();
+    renderLayerPanel();
   }
 
   function applyBackgroundStyle() {
@@ -358,7 +387,9 @@
     selectedIds = {};
     snapshot.selected.forEach(function(id) { selectedIds[id] = true; });
     nextId = placedItems.reduce(function(max, item) { return Math.max(max, item.id); }, 0) + 1;
+    editingItemId = null;
     drawAll();
+    renderLayerPanel();
     updateUI();
   }
 
@@ -411,6 +442,7 @@
         if (textures.length === 0) currentTextureIndex = -1;
         refreshMaterialPanel();
         drawAll();
+        renderLayerPanel();
         updateUI();
       });
       wrapper.appendChild(imgEl);
@@ -434,8 +466,10 @@
     placedItems = [];
     selectedIds = {};
     currentTextureIndex = -1;
+    editingItemId = null;
     refreshMaterialPanel();
     drawAll();
+    renderLayerPanel();
     updateUI();
   });
 
@@ -450,32 +484,60 @@
       y: canvas.height / 2 - size / 2,
       w: size,
       h: size,
-      level: level
+      level: level,
+      hidden: false
     };
     placedItems.push(newItem);
     selectedIds = {};
     selectedIds[newItem.id] = true;
     drawAll();
+    renderLayerPanel();
     updateUI();
   }
 
   function getItemAt(mx, my) {
     for (var i = placedItems.length - 1; i >= 0; i--) {
       var it = placedItems[i];
+      if (it.hidden) continue;
       if (mx >= it.x && mx <= it.x + it.w && my >= it.y && my <= it.y + it.h) return it;
     }
     return null;
+  }
+
+  function getResizeHandle(item, mx, my) {
+    if (!item) return false;
+    var hx = item.x + item.w - 8;
+    var hy = item.y + item.h - 8;
+    return mx >= hx && mx <= hx + 8 && my >= hy && my <= hy + 8;
   }
 
   canvas.addEventListener('mousedown', function(e) {
     var rect = canvas.getBoundingClientRect();
     var mx = e.clientX - rect.left;
     var my = e.clientY - rect.top;
+
+    if (editingItemId) {
+      var editItem = null;
+      for (var i = 0; i < placedItems.length; i++) {
+        if (placedItems[i].id === editingItemId) { editItem = placedItems[i]; break; }
+      }
+      if (editItem && getResizeHandle(editItem, mx, my)) {
+        resizingItemId = editingItemId;
+        resizeStartMouse = { x: mx, y: my };
+        resizeStartSize = { w: editItem.w, h: editItem.h };
+        saveHistory();
+        e.preventDefault();
+        return;
+      }
+    }
+
     var clickedItem = getItemAt(mx, my);
     if (!clickedItem) {
       if (!e.ctrlKey && Object.keys(selectedIds).length > 0) {
         selectedIds = {};
+        editingItemId = null;
         drawAll();
+        renderLayerPanel();
         updateUI();
       }
       return;
@@ -487,6 +549,7 @@
         selectedIds[clickedItem.id] = true;
       }
       drawAll();
+      renderLayerPanel();
       updateUI();
       return;
     }
@@ -494,6 +557,7 @@
       selectedIds = {};
       selectedIds[clickedItem.id] = true;
       drawAll();
+      renderLayerPanel();
       updateUI();
     }
     saveHistory();
@@ -509,13 +573,30 @@
   });
 
   canvas.addEventListener('mousemove', function(e) {
-    if (!dragData) return;
     var rect = canvas.getBoundingClientRect();
     var mx = e.clientX - rect.left;
     var my = e.clientY - rect.top;
+
+    if (resizingItemId) {
+      var item = null;
+      for (var i = 0; i < placedItems.length; i++) {
+        if (placedItems[i].id === resizingItemId) { item = placedItems[i]; break; }
+      }
+      if (item && resizeStartMouse && resizeStartSize) {
+        var dx = mx - resizeStartMouse.x;
+        var dy = my - resizeStartMouse.y;
+        var newSize = Math.max(8, Math.min(512, resizeStartSize.w + Math.max(dx, dy)));
+        item.w = newSize;
+        item.h = newSize;
+        drawAll();
+      }
+      return;
+    }
+
+    if (!dragData) return;
     var dx = mx - dragData.startX;
     var dy = my - dragData.startY;
-    var selectedItems = placedItems.filter(function(it) { return selectedIds[it.id]; });
+    var selectedItems = placedItems.filter(function(it) { return selectedIds[it.id] && !it.hidden; });
     snapTarget = null;
     if (e.shiftKey && selectedItems.length > 0) {
       var levelsSet = {};
@@ -533,6 +614,7 @@
         var bestDx = dx, bestDy = dy, minDist = 20;
         var bestOther = null, bestEdge = '';
         placedItems.forEach(function(other) {
+          if (other.hidden) return;
           if (selectedIds[other.id] || other.level !== targetLevel) return;
           var tests = [
             { dist: Math.abs(bounds.minX - other.x), dx: other.x - bounds.minX, dy: 0, edge: 'left' },
@@ -560,18 +642,53 @@
   });
 
   canvas.addEventListener('mouseup', function() {
+    if (resizingItemId) {
+      resizingItemId = null;
+      resizeStartMouse = null;
+      resizeStartSize = null;
+      drawAll();
+      renderLayerPanel();
+    }
     dragData = null;
     dragStartPositions = null;
     snapTarget = null;
     lowPerformanceMode = false;
     drawAll();
   });
+
   canvas.addEventListener('mouseleave', function() {
+    if (resizingItemId) {
+      resizingItemId = null;
+      resizeStartMouse = null;
+      resizeStartSize = null;
+      drawAll();
+      renderLayerPanel();
+    }
     dragData = null;
     dragStartPositions = null;
     snapTarget = null;
     lowPerformanceMode = false;
     drawAll();
+  });
+
+  canvas.addEventListener('dblclick', function(e) {
+    var rect = canvas.getBoundingClientRect();
+    var mx = e.clientX - rect.left;
+    var my = e.clientY - rect.top;
+    var item = getItemAt(mx, my);
+    if (item) {
+      editingItemId = item.id;
+      selectedIds = {};
+      selectedIds[item.id] = true;
+      drawAll();
+      renderLayerPanel();
+      updateUI();
+    } else {
+      if (editingItemId) {
+        editingItemId = null;
+        drawAll();
+      }
+    }
   });
 
   document.addEventListener('keydown', function(e) {
@@ -595,6 +712,7 @@
       selectedIds = {};
       newItems.forEach(function(it) { selectedIds[it.id] = true; });
       drawAll();
+      renderLayerPanel();
       updateUI();
     }
     else if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -602,8 +720,12 @@
       if (Object.keys(selectedIds).length === 0) return;
       saveHistory();
       placedItems = placedItems.filter(function(it) { return !selectedIds[it.id]; });
+      if (editingItemId && !placedItems.some(function(it) { return it.id === editingItemId; })) {
+        editingItemId = null;
+      }
       selectedIds = {};
       drawAll();
+      renderLayerPanel();
       updateUI();
     }
 
@@ -621,6 +743,7 @@
         }
       });
       drawAll();
+      renderLayerPanel();
       updateUI();
     }
   });
@@ -635,8 +758,12 @@
     if (Object.keys(selectedIds).length === 0) return;
     saveHistory();
     placedItems = placedItems.filter(function(it) { return !selectedIds[it.id]; });
+    if (editingItemId && !placedItems.some(function(it) { return it.id === editingItemId; })) {
+      editingItemId = null;
+    }
     selectedIds = {};
     drawAll();
+    renderLayerPanel();
     updateUI();
   });
 
@@ -746,25 +873,41 @@
   });
 
   function doExport() {
-    if (bgMode === 'transparent') {
-      var dataURL = canvas.toDataURL('image/png');
-      pendingExportDataURL = dataURL;
-      pendingExportFilename = getTimeString() + '_透明.png';
-      showPreview(dataURL);
-    } else {
-      var exportCanvas = document.createElement('canvas');
-      exportCanvas.width = canvas.width;
-      exportCanvas.height = canvas.height;
-      var expCtx = exportCanvas.getContext('2d');
-      expCtx.imageSmoothingEnabled = false;
-      expCtx.fillStyle = bgColorInput.value;
-      expCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
-      expCtx.drawImage(canvas, 0, 0);
-      var dataURL = exportCanvas.toDataURL('image/png');
-      pendingExportDataURL = dataURL;
-      pendingExportFilename = getTimeString() + '_带背景.png';
-      showPreview(dataURL);
+    var tempCanvas = document.createElement('canvas');
+    tempCanvas.width = canvas.width;
+    tempCanvas.height = canvas.height;
+    var tempCtx = tempCanvas.getContext('2d');
+    tempCtx.imageSmoothingEnabled = false;
+    if (bgMode !== 'transparent') {
+      tempCtx.fillStyle = bgColorInput.value;
+      tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
     }
+    var sorted = placedItems.slice().sort(function(a, b) { return a.level - b.level; });
+    var angle = parseFloat(lightAngleInput.value) * Math.PI / 180;
+    var shadowFactor = parseFloat(shadowLenInput.value);
+    sorted.forEach(function(item) {
+      if (item.hidden) return;
+      var tex = textures[item.textureIndex];
+      if (!tex) return;
+      var x = item.x, y = item.y, w = item.w, h = item.h;
+      var shadowDX = Math.cos(angle) * 20 * shadowFactor;
+      var shadowDY = -Math.sin(angle) * 20 * shadowFactor;
+      tempCtx.save();
+      tempCtx.globalAlpha = 0.3;
+      tempCtx.filter = 'brightness(0)';
+      tempCtx.drawImage(tex.img, x + shadowDX, y + shadowDY, w, h);
+      tempCtx.filter = 'none';
+      tempCtx.restore();
+      tempCtx.drawImage(tex.img, x, y, w, h);
+    });
+    var dataURL = tempCanvas.toDataURL('image/png');
+    if (bgMode === 'transparent') {
+      pendingExportFilename = getTimeString() + '_透明.png';
+    } else {
+      pendingExportFilename = getTimeString() + '_带背景.png';
+    }
+    pendingExportDataURL = dataURL;
+    showPreview(dataURL);
   }
 
   function downloadFile(dataURL, filename) {
@@ -804,6 +947,100 @@
       pendingExportFilename = null;
     }
   });
+
+  function renderLayerPanel() {
+    if (!layerList) return;
+    var levelMap = {};
+    placedItems.forEach(function(item) {
+      if (!levelMap[item.level]) levelMap[item.level] = [];
+      levelMap[item.level].push(item);
+    });
+    var levels = Object.keys(levelMap).map(Number).sort(function(a, b) { return b - a; });
+    layerList.innerHTML = '';
+    levels.forEach(function(level) {
+      var group = document.createElement('div');
+      group.className = 'layer-group';
+      group.draggable = true;
+      group.dataset.level = level;
+
+      group.addEventListener('dragstart', function(e) {
+        e.dataTransfer.setData('text/plain', level);
+        e.dataTransfer.effectAllowed = 'move';
+      });
+      group.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        group.classList.add('drag-over');
+      });
+      group.addEventListener('dragleave', function() {
+        group.classList.remove('drag-over');
+      });
+      group.addEventListener('drop', function(e) {
+        e.preventDefault();
+        group.classList.remove('drag-over');
+        var fromLevel = parseInt(e.dataTransfer.getData('text/plain'));
+        if (fromLevel === level) return;
+        placedItems.forEach(function(item) {
+          if (item.level === fromLevel) {
+            item.level = level;
+          } else if (item.level === level) {
+            item.level = fromLevel;
+          }
+        });
+        saveHistory();
+        drawAll();
+        renderLayerPanel();
+        updateUI();
+      });
+
+      var levelLabel = document.createElement('span');
+      levelLabel.className = 'layer-level';
+      levelLabel.textContent = level;
+      group.appendChild(levelLabel);
+
+      var thumbsDiv = document.createElement('div');
+      thumbsDiv.className = 'layer-thumbs';
+      levelMap[level].forEach(function(item) {
+        var thumb = document.createElement('img');
+        var tex = textures[item.textureIndex];
+        if (tex) thumb.src = tex.dataURL;
+        thumb.className = 'layer-thumb';
+        if (selectedIds[item.id]) thumb.classList.add('selected');
+        if (item.hidden) thumb.classList.add('hidden');
+        thumb.addEventListener('click', function(e) {
+          e.stopPropagation();
+          if (e.ctrlKey) {
+            if (selectedIds[item.id]) delete selectedIds[item.id];
+            else selectedIds[item.id] = true;
+          } else {
+            selectedIds = {};
+            selectedIds[item.id] = true;
+          }
+          drawAll();
+          renderLayerPanel();
+          updateUI();
+        });
+        var eyeBtn = document.createElement('button');
+        eyeBtn.className = 'eye-btn';
+        eyeBtn.textContent = item.hidden ? '👁‍🗨' : '👁';
+        eyeBtn.title = '显示/隐藏';
+        eyeBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          item.hidden = !item.hidden;
+          drawAll();
+          renderLayerPanel();
+        });
+        var thumbWrapper = document.createElement('span');
+        thumbWrapper.style.display = 'inline-flex';
+        thumbWrapper.style.alignItems = 'center';
+        thumbWrapper.appendChild(thumb);
+        thumbWrapper.appendChild(eyeBtn);
+        thumbsDiv.appendChild(thumbWrapper);
+      });
+      group.appendChild(thumbsDiv);
+      layerList.appendChild(group);
+    });
+  }
 
   loadPresets();
   renderPresets();
